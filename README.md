@@ -2,7 +2,7 @@
 
 **A comprehensive web-based monitoring and management dashboard for Proxmox VE clusters.**
 
-Built by [Ayi NEDJIMI Consultants](https://github.com/ayinedjimi)
+Built by [Ayi NEDJIMI Consultants](https://www.ayinedjimi-consultants.fr) | [GitHub](https://github.com/ayinedjimi)
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green?logo=flask)
@@ -16,7 +16,7 @@ Built by [Ayi NEDJIMI Consultants](https://github.com/ayinedjimi)
 ### Dashboard (Vue rapide)
 - **Cluster health score** (0-100) with real-time calculation
 - **LED indicators** (green/yellow/red) per node with alert blink
-- **Per-node metrics** with Grok-level thresholds: CPU, RAM, Disk, Swap, Load, I/O Wait
+- **Per-node metrics** with production-grade thresholds: CPU, RAM, Disk, Swap, Load, I/O Wait
 - **Cluster-wide VM/CT overview** with instant status
 - **Intelligent correlation analysis** (oversubscription, I/O bottlenecks, memory pressure)
 
@@ -48,7 +48,7 @@ Built by [Ayi NEDJIMI Consultants](https://github.com/ayinedjimi)
 
 ### Audit Tab
 - **Health score /100** with weighted checks
-- **Grok-level thresholds**: CPU <60% ok / 60-85% warn / >90% crit
+- **Production-grade thresholds**: CPU <60% ok / 60-85% warn / >90% crit
 - **Per-category breakdown**: Cluster, CPU, Memory, I/O, PSI, Services, Hardware, Storage, VMs
 - **VM & Container audit**: individual performance checks
 
@@ -85,24 +85,78 @@ The dashboard features a clean, light theme with color-coded metrics:
 
 ## Installation
 
-### 1. Clone the repository
+### Linux / macOS
 
 ```bash
 git clone https://github.com/ayinedjimi/proxmox-cluster-manager.git
 cd proxmox-cluster-manager
-```
-
-### 2. Install dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-### 3. Configure
-
-```bash
 cp config.example.py config.py
+# Edit config.py with your Proxmox credentials
+python app.py
 ```
+
+### Windows
+
+#### Option 1 : Installation rapide
+
+1. **Installer Python** (si pas deja installe) :
+   ```powershell
+   winget install Python.Python.3.12
+   ```
+   > Redemarrez votre terminal apres l'installation.
+
+2. **Cloner le projet** :
+   ```powershell
+   git clone https://github.com/ayinedjimi/proxmox-cluster-manager.git
+   cd proxmox-cluster-manager
+   ```
+
+3. **Installer les dependances** :
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+4. **Configurer** :
+   ```powershell
+   copy config.example.py config.py
+   notepad config.py
+   ```
+   Editez `config.py` avec les IPs de vos noeuds Proxmox et vos identifiants.
+
+5. **Lancer** :
+   ```powershell
+   python app.py
+   ```
+
+6. Ouvrir **http://localhost:5000** dans votre navigateur.
+
+#### Option 2 : Avec un environnement virtuel (recommande)
+
+```powershell
+git clone https://github.com/ayinedjimi/proxmox-cluster-manager.git
+cd proxmox-cluster-manager
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+copy config.example.py config.py
+notepad config.py
+python app.py
+```
+
+#### Lancement automatique au demarrage (Windows)
+
+Creez un fichier `start-cluster-manager.bat` :
+```batch
+@echo off
+cd /d "%~dp0"
+python app.py
+```
+Placez un raccourci de ce fichier dans `shell:startup` (Win+R > `shell:startup`) pour un demarrage automatique avec Windows.
+
+---
+
+### Configuration
 
 Edit `config.py` with your Proxmox cluster details:
 
@@ -116,14 +170,6 @@ PROXMOX_CLUSTER = {
 ```
 
 > **Tip**: For production, create a dedicated Proxmox user with the `PVEAuditor` role instead of using root.
-
-### 4. Run
-
-```bash
-python app.py
-```
-
-Open your browser at **http://localhost:5000**
 
 ---
 
@@ -193,14 +239,14 @@ Based on production-grade monitoring best practices:
 
 ## Production Deployment
 
-For production use, consider using a WSGI server:
+### Linux with Gunicorn
 
 ```bash
 pip install gunicorn
 gunicorn -w 4 -b 0.0.0.0:5000 app:app
 ```
 
-Or with systemd:
+### Systemd Service
 
 ```ini
 # /etc/systemd/system/cluster-manager.service
@@ -219,6 +265,27 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
+```bash
+sudo systemctl enable --now cluster-manager
+```
+
+---
+
+## Related Proxmox Resources
+
+Comprehensive Proxmox VE guides and articles by Ayi NEDJIMI Consultants:
+
+- [Proxmox VE 9 : Guide Complet Installation & Configuration](https://ayinedjimi-consultants.fr/virtualisation/proxmox-ve-guide-complet.html) - Step-by-step installation, advanced configuration, clustering, Ceph, and VMware migration
+- [Guide d'Optimisation Proxmox VE 9.0](https://www.ayinedjimi-consultants.fr/virtualisation/optimisation-proxmox.html) - System tuning, storage optimization, network and cluster HA
+- [Guide Complet de Dimensionnement Proxmox VE 9.0](https://www.ayinedjimi-consultants.fr/virtualisation/dimensionnement-proxmox.html) - CPU, RAM, storage, network, and cluster HA sizing guide
+- [Memento Securite Proxmox VE 9](https://www.ayinedjimi-consultants.fr/virtualisation/securite-proxmox.html) - Security attacks, vulnerabilities and hardening
+- [Audit Securite Proxmox 9](https://www.ayinedjimi-consultants.fr/virtualisation.html) - Configuration audit, access rights, VM/LXC security
+- [Evolutions Proxmox VE (V7 a V9)](https://www.ayinedjimi-consultants.fr/virtualisation/evolutions-proxmox.html) - Major changes from Proxmox VE 7 to 9
+- [Guide Migration VMware vers Proxmox 9](https://www.ayinedjimi-consultants.fr/virtualisation/migration-vmware-proxmox.html) - Complete VMware to Proxmox migration strategy
+- [Synchronisation NTP pour Proxmox VE](https://www.ayinedjimi-consultants.fr/virtualisation/ntp-proxmox.html) - Chrony configuration and best practices for cluster stability
+
+Visit [ayinedjimi-consultants.fr](https://www.ayinedjimi-consultants.fr) for more infrastructure and virtualization articles.
+
 ---
 
 ## Contributing
@@ -229,6 +296,6 @@ Contributions are welcome! Please open an issue or pull request.
 
 ## License
 
-MIT License - Copyright (c) 2026 Ayi NEDJIMI Consultants
+MIT License - Copyright (c) 2026 [Ayi NEDJIMI Consultants](https://www.ayinedjimi-consultants.fr)
 
 See [LICENSE](LICENSE) for details.

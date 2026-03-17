@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluster Manager - Ayi NEDJIMI Consultants</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root{--bg:#f0f2f5;--card:#fff;--hover:#f8f9fb;--border:#e2e8f0;--border2:#cbd5e1;--text:#0f172a;--text2:#475569;--text3:#94a3b8;--accent:#2563eb;--accent2:#4f46e5;--green:#16a34a;--green-bg:#dcfce7;--green-b:#86efac;--yellow:#d97706;--yellow-bg:#fef3c7;--red:#dc2626;--red-bg:#fee2e2;--red-b:#fca5a5;--purple:#7c3aed;--cyan:#0891b2;--sh:0 1px 3px rgba(0,0,0,.06);--sh2:0 4px 12px rgba(0,0,0,.08);}
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+        header{background:#fff;padding:0 24px;height:52px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);box-shadow:var(--sh);position:sticky;top:0;z-index:100;}
+        .logo{display:flex;align-items:center;gap:10px;}
+        .logo-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;color:#fff;box-shadow:0 2px 6px rgba(37,99,235,.3);}
+        .logo h1{font-size:.85rem;font-weight:700;}.logo span{font-size:.55rem;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;}
+        .h-right{display:flex;align-items:center;gap:8px;}
+        .h-chip{display:flex;align-items:center;gap:4px;background:var(--bg);padding:4px 9px;border-radius:5px;border:1px solid var(--border);color:var(--text2);font-size:.7rem;}.h-chip b{color:var(--text);font-weight:600;}
+        .btn{display:flex;align-items:center;gap:4px;background:var(--accent);color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.7rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .2s;}.btn:hover{background:#1d4ed8;}.btn:active{transform:scale(.97);}
+        .btn svg{width:13px;height:13px;}
+        .ref-time{font-size:.63rem;color:var(--text3);}
+
+        .alert{display:flex;align-items:center;gap:10px;padding:8px 24px;font-size:.74rem;font-weight:500;border-bottom:1px solid var(--border);}
+        .alert.ok{background:#f0fdf4;border-bottom-color:#bbf7d0;color:#166534;}
+        .alert.warn{background:#fffbeb;border-bottom-color:#fde68a;color:#92400e;}
+        .alert.err{background:#fef2f2;border-bottom-color:#fecaca;color:#991b1b;}
+        .leds{display:flex;gap:6px;align-items:center;}
+        .led{width:11px;height:11px;border-radius:50%;flex-shrink:0;box-shadow:0 0 5px 1px currentColor;}
+        .led-g{background:#22c55e;color:rgba(34,197,94,.4);}.led-y{background:#f59e0b;color:rgba(245,158,11,.4);}.led-r{background:#ef4444;color:rgba(239,68,68,.4);animation:blink 1s ease-in-out infinite;}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+        .alert-msg{flex:1;}.alert-details{display:flex;gap:10px;flex-wrap:wrap;font-size:.7rem;}
+        .alert-item{display:flex;align-items:center;gap:3px;}
+        .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}.dot-g{background:var(--green)}.dot-y{background:var(--yellow)}.dot-r{background:var(--red)}
+
+        .tabs-bar{display:flex;gap:0;margin:14px 24px 0;background:#fff;border-radius:10px 10px 0 0;border:1px solid var(--border);border-bottom:none;overflow-x:auto;box-shadow:var(--sh);}
+        .tab{padding:10px 18px;font-size:.74rem;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}.tab:hover{color:var(--text2);background:var(--hover);}.tab.active{color:var(--accent);border-bottom-color:var(--accent);background:#fff;}
+        .tab-content{display:none;}.tab-content.active{display:block;}
+
+        .c-banner{margin:0 24px;padding:14px 20px;background:#fff;border:1px solid var(--border);border-top:none;border-radius:0 0 10px 10px;box-shadow:var(--sh);display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;}
+        .c-banner h2{font-size:.95rem;font-weight:700;color:var(--accent);}.c-meta{font-size:.68rem;color:var(--text3);margin-top:1px;}
+        .c-stats{display:flex;gap:16px;}.c-stat{text-align:center;min-width:50px;}.c-stat .n{font-size:1.1rem;font-weight:700;color:var(--accent);}.c-stat .l{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;}
+        .info-row{margin:8px 24px 0;display:flex;gap:6px;flex-wrap:wrap;}
+        .info-pill{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:.68rem;background:#fff;border:1px solid var(--border);color:var(--text2);box-shadow:var(--sh);}
+
+        .grid{padding:14px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:14px;}
+        .card{background:#fff;border-radius:10px;border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh);transition:box-shadow .3s;}.card:hover{box-shadow:var(--sh2);}
+        .card-h{padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);background:var(--hover);}
+        .card-title{display:flex;align-items:center;gap:8px;}
+        .card-icon{width:32px;height:32px;background:linear-gradient(135deg,rgba(37,99,235,.1),rgba(79,70,229,.06));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+        .card-name{font-size:.88rem;font-weight:600;}.card-ip{color:var(--text3);font-size:.7rem;font-family:monospace;}
+        .badge{padding:3px 9px;border-radius:12px;font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;}
+        .b-on{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);}.b-off{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}
+        .b-run{background:var(--green-bg);color:var(--green);}.b-stop{background:var(--yellow-bg);color:var(--yellow);}
+
+        .gauges{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:14px 16px;border-bottom:1px solid var(--border);}
+        .g{text-align:center;}.g-ring{width:68px;height:68px;margin:0 auto 4px;position:relative;}
+        .g-ring svg{transform:rotate(-90deg)}.g-ring circle{fill:none;stroke-width:5;stroke-linecap:round}.g-ring .bg{stroke:#e2e8f0}.g-ring .fl{transition:stroke-dashoffset .8s ease}
+        .g-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.95rem;font-weight:700;}
+        .g-lbl{font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;}.g-det{font-size:.6rem;color:var(--text2);margin-top:1px;}
+
+        .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(85px,1fr));gap:6px;padding:10px 16px;border-bottom:1px solid var(--border);}
+        .m{background:var(--bg);border-radius:6px;padding:7px 6px;text-align:center;border:1px solid var(--border);}.m-val{font-size:.8rem;font-weight:600;}.m-lbl{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:1px;}
+        .n-meta{padding:7px 16px;border-bottom:1px solid var(--border);font-size:.66rem;color:var(--text3);display:flex;gap:12px;flex-wrap:wrap;background:var(--hover);}
+
+        .sec{padding:12px 16px;}.sec+.sec{border-top:1px solid var(--border);}
+        .sec-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+        .sec-t{font-size:.68rem;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;}
+        .sec-c{font-size:.6rem;padding:2px 6px;border-radius:6px;background:var(--bg);color:var(--text3);border:1px solid var(--border);}
+
+        .svc-grid{display:flex;flex-wrap:wrap;gap:4px;}
+        .svc{display:flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;font-size:.66rem;background:var(--bg);border:1px solid var(--border);}
+        .svc-ok{color:var(--text2)}.svc-fail{color:var(--red);border-color:var(--red-b);background:var(--red-bg);}
+        .disk-grid,.net-grid{display:flex;flex-wrap:wrap;gap:5px;}
+        .disk-item,.net-item{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;font-size:.68rem;background:var(--bg);border:1px solid var(--border);}
+        .disk-model{color:var(--text3);font-size:.6rem;}.net-iface{font-weight:600;color:var(--cyan);}.net-det{color:var(--text3);font-size:.6rem;}
+
+        table{width:100%;border-collapse:collapse;font-size:.72rem;}
+        th{text-align:left;padding:6px 7px;color:var(--text3);font-weight:500;font-size:.6rem;text-transform:uppercase;letter-spacing:.6px;background:var(--bg);}
+        td{padding:7px 7px;border-top:1px solid var(--border);}tbody tr{transition:background .15s}tbody tr:hover{background:var(--hover);}
+        .mini-bar{width:100%;height:3px;background:#e2e8f0;border-radius:2px;margin-top:2px;overflow:hidden;}.mini-fill{height:100%;border-radius:2px;transition:width .5s}
+        .cg{background:var(--green);color:var(--green)}.cy{background:var(--yellow);color:var(--yellow)}.cr{background:var(--red);color:var(--red)}
+        .sto-row{display:flex;align-items:center;gap:6px;}.sto-bar{flex:1;max-width:70px;}.sto-pct{font-size:.68rem;font-weight:600;min-width:30px;}.sto-det{font-size:.66rem;color:var(--text2);}
+        .t-ok{color:var(--green);font-weight:600}.t-err{color:var(--red);font-weight:600}.t-warn{color:var(--yellow)}
+
+        .tasks-panel{margin:0 24px 14px;background:#fff;border-radius:10px;border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh);}
+        .tasks-panel .sec-h{padding:12px 16px 0;}.tasks-panel td,.tasks-panel th{padding:5px 10px;}
+
+        .adv-grid{padding:14px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:14px;}
+        .psi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);}
+        .psi{text-align:center;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);}
+        .psi-title{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+        .psi-val{font-size:1.1rem;font-weight:700;}.psi-sub{font-size:.58rem;color:var(--text3);margin-top:2px;}
+        .psi-bar{height:4px;background:#e2e8f0;border-radius:2px;margin-top:4px;overflow:hidden;}.psi-fill{height:100%;border-radius:2px;}
+        .spark-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:12px 16px;}
+        .spark{background:var(--bg);border-radius:8px;padding:10px;border:1px solid var(--border);}
+        .spark-label{font-size:.6rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}.spark-val{font-size:.82rem;font-weight:600;margin-bottom:6px;}
+        .spark canvas{width:100%;height:30px;}
+        .perf-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);}
+        .perf{text-align:center;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border);}.perf-val{font-size:1rem;font-weight:700;}.perf-lbl{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}.perf-status{font-size:.58rem;margin-top:3px;font-weight:600;}
+
+        /* RECO */
+        .reco-summary{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;padding:14px 24px 0;}
+        .reco-badge{padding:6px 14px;border-radius:8px;font-size:.75rem;font-weight:600;display:flex;align-items:center;gap:5px;}
+        .reco-badge.crit{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}.reco-badge.wb{background:var(--yellow-bg);color:var(--yellow);border:1px solid #fde68a;}.reco-badge.ib{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;}
+        .reco-list{padding:0 24px 14px;}
+        .reco-cat{margin-bottom:16px;}.reco-cat-title{font-size:.8rem;font-weight:700;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--border);}
+        .reco-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:6px;box-shadow:var(--sh);display:grid;grid-template-columns:5px 1fr;gap:10px;}.reco-card:hover{box-shadow:var(--sh2);}
+        .reco-bar{border-radius:3px;width:5px;}.reco-bar.rcrit{background:var(--red);}.reco-bar.rwarn{background:var(--yellow);}.reco-bar.rinfo{background:var(--accent);}
+        .reco-title{font-size:.74rem;font-weight:600;margin-bottom:3px;}.reco-detail{font-size:.66rem;color:var(--text2);margin-bottom:5px;}
+        .reco-vals{display:flex;gap:14px;font-size:.65rem;}.reco-cur{color:var(--red);}.reco-rec{color:var(--green);font-weight:600;}.reco-label{color:var(--text3);font-size:.55rem;text-transform:uppercase;letter-spacing:.5px;}
+
+        /* LOGS */
+        .log-controls{padding:14px 24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+        .log-controls select,.log-controls input{font-family:inherit;font-size:.72rem;padding:5px 10px;border:1px solid var(--border);border-radius:6px;background:#fff;}
+        .log-controls label{font-size:.7rem;color:var(--text2);}
+        .log-panel{margin:0 24px 14px;background:#fff;border-radius:10px;border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh);}
+        .log-panel .sec-h{padding:10px 16px;background:var(--hover);border-bottom:1px solid var(--border);}
+        .log-lines{max-height:400px;overflow-y:auto;font-family:'SF Mono','Fira Code',monospace;font-size:.68rem;line-height:1.6;}
+        .log-line{padding:2px 16px;border-bottom:1px solid rgba(0,0,0,.02);}.log-line:hover{background:var(--hover);}
+        .log-line.l-err{background:#fef2f2;color:#991b1b;font-weight:500;}.log-line.l-warn{background:#fffbeb;color:#92400e;}
+        .log-line .ln{color:var(--text3);user-select:none;display:inline-block;min-width:28px;text-align:right;margin-right:8px;}
+
+        /* AUDIT */
+        .audit-grid{padding:14px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;}
+        .audit-card{background:#fff;border-radius:10px;border:1px solid var(--border);overflow:hidden;box-shadow:var(--sh);}
+        .audit-card-h{padding:10px 14px;font-size:.76rem;font-weight:600;background:var(--hover);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;}
+        .audit-card-h .ico{font-size:14px;}
+        .audit-body{padding:10px 14px;font-size:.7rem;}
+        .audit-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.03);}
+        .audit-row:last-child{border:none;}.audit-k{color:var(--text2);}.audit-v{font-weight:600;}
+        .audit-v.good{color:var(--green);}.audit-v.bad{color:var(--red);}.audit-v.mid{color:var(--yellow);}
+        .audit-score{text-align:center;padding:14px;}.audit-score .num{font-size:2rem;font-weight:800;}.audit-score .lbl{font-size:.65rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;}
+
+        /* QUICK VIEW */
+        .quick-wrap{padding:14px 24px;}
+        .quick-header{display:grid;grid-template-columns:200px 1fr;gap:16px;margin-bottom:16px;}
+        .quick-score{background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:var(--sh);text-align:center;padding:20px;}
+        .quick-score .big{font-size:2.8rem;font-weight:800;line-height:1;}.quick-score .lbl{font-size:.7rem;color:var(--text3);margin-top:4px;}
+        .quick-alerts{background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:var(--sh);padding:14px 18px;overflow-y:auto;max-height:160px;}
+        .quick-alerts .qa{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:.72rem;border-bottom:1px solid rgba(0,0,0,.03);}.qa:last-child{border:none;}
+        .quick-nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;margin-bottom:16px;}
+        .qn{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);padding:14px 16px;}
+        .qn-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+        .qn-name{font-size:.88rem;font-weight:700;}.qn-ip{font-size:.65rem;color:var(--text3);font-family:monospace;}
+        .qn-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+        .qm{text-align:center;padding:8px;border-radius:8px;border:1px solid var(--border);}
+        .qm-val{font-size:1.2rem;font-weight:700;}.qm-lbl{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+        .qm-bar{height:4px;border-radius:2px;background:#e2e8f0;margin-top:4px;overflow:hidden;}.qm-fill{height:100%;border-radius:2px;transition:width .5s;}
+        .qm.ok{background:#f0fdf4;border-color:#bbf7d0;}.qm.ok .qm-val{color:var(--green);}
+        .qm.warn{background:#fffbeb;border-color:#fde68a;}.qm.warn .qm-val{color:var(--yellow);}
+        .qm.crit{background:#fef2f2;border-color:#fecaca;}.qm.crit .qm-val{color:var(--red);}
+        .qn-extra{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;font-size:.65rem;}
+        .qe{padding:3px 8px;border-radius:5px;background:var(--bg);border:1px solid var(--border);color:var(--text2);}
+        .qe.bad{background:var(--red-bg);color:var(--red);border-color:var(--red-b);}
+        .quick-vms{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
+        .quick-vms .sec-h{padding:10px 16px;background:var(--hover);border-bottom:1px solid var(--border);}
+        .quick-corr{margin-top:16px;}
+        .corr-card{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+        .corr-icon{font-size:18px;flex-shrink:0;}.corr-title{font-size:.76rem;font-weight:600;}.corr-detail{font-size:.66rem;color:var(--text2);margin-top:2px;}
+
+        /* MODAL */
+        .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;}
+        .modal{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-width:540px;width:92%;max-height:90vh;overflow-y:auto;padding:24px;}
+        .modal h3{font-size:.95rem;font-weight:700;margin-bottom:12px;}.modal p{font-size:.75rem;color:var(--text2);margin-bottom:10px;}
+        .modal label{display:block;font-size:.7rem;font-weight:600;color:var(--text2);margin-bottom:3px;margin-top:10px;}
+        .modal input{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.78rem;}
+        .modal .btn-row{display:flex;gap:8px;margin-top:16px;justify-content:flex-end;}
+        .modal .btn-cancel{background:var(--bg);color:var(--text2);border:1px solid var(--border);padding:6px 14px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;font-family:inherit;}
+        .modal .btn-cancel:hover{background:var(--hover);}
+        .modal-log{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:12px;margin-top:12px;font-family:monospace;font-size:.68rem;max-height:200px;overflow-y:auto;line-height:1.6;}
+        .modal-log .ok{color:#22c55e;}.modal-log .err{color:#ef4444;}.modal-log .warn{color:#f59e0b;}
+        .modal-manual{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:10px;font-size:.7rem;}
+        .modal-manual code{background:#1e293b;color:#e2e8f0;padding:2px 6px;border-radius:4px;font-size:.68rem;}
+        .modal-manual pre{background:#1e293b;color:#e2e8f0;padding:10px;border-radius:6px;margin-top:6px;font-size:.66rem;overflow-x:auto;}
+
+        .loading{text-align:center;padding:60px 20px;color:var(--text3);grid-column:1/-1;}
+        .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .empty{color:var(--text3);font-style:italic;font-size:.72rem;padding:6px 0;}
+        footer{text-align:center;padding:16px;font-size:.63rem;color:var(--text3);border-top:1px solid var(--border);background:#fff;}footer b{color:var(--text2);}
+        @media(max-width:640px){.grid,.adv-grid,.audit-grid{padding:10px;grid-template-columns:1fr;}.c-banner{grid-template-columns:1fr;}.gauges{grid-template-columns:repeat(2,1fr);}.tabs-bar{margin:10px 10px 0;}header{padding:0 10px;}}
+    </style>
+</head>
+<body>
+<header>
+    <div class="logo"><div class="logo-icon">CM</div><div><h1>Cluster Manager</h1><span>Ayi NEDJIMI Consultants</span></div></div>
+    <div class="h-right">
+        <div id="hStats" style="display:flex;gap:6px;"></div>
+        <button class="btn" onclick="fetchStatus()" id="btnR"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Rafraichir</button>
+        <div class="ref-time" id="refTime">--:--:--</div>
+    </div>
+</header>
+<div class="alert ok" id="alertBar"><div class="leds" id="alertLeds"></div><div class="alert-msg" id="alertMsg">Chargement...</div><div class="alert-details" id="alertDet"></div></div>
+
+<div class="tabs-bar">
+    <div class="tab active" data-tab="quick">Vue rapide</div>
+    <div class="tab" data-tab="main">Vue principale</div>
+    <div class="tab" data-tab="advanced">Performance</div>
+    <div class="tab" data-tab="logs">Journaux</div>
+    <div class="tab" data-tab="reco">Recommandations</div>
+    <div class="tab" data-tab="audit">Audit</div>
+</div>
+
+<div id="tab-quick" class="tab-content active">
+    <div id="quickContent"><div class="loading"><div class="spinner"></div>Chargement...</div></div>
+</div>
+<div id="tab-main" class="tab-content">
+    <div class="c-banner" id="cBanner" style="display:none"><div><h2 id="cName">Cluster</h2><div class="c-meta" id="cMeta"></div></div><div class="c-stats" id="cStats"></div></div>
+    <div class="info-row" id="infoRow"></div>
+    <div class="grid" id="mainGrid"><div class="loading"><div class="spinner"></div>Connexion au cluster...</div></div>
+    <div class="tasks-panel" id="tasksPanel" style="display:none"><div class="sec-h"><span class="sec-t">Taches recentes</span></div><div class="sec" id="tasksList"></div></div>
+</div>
+<div id="tab-advanced" class="tab-content"><div class="adv-grid" id="advGrid"><div class="loading">Chargez les donnees...</div></div></div>
+<div id="tab-logs" class="tab-content"><div id="logsContent"><div class="loading"><div class="spinner"></div>Chargement des journaux...</div></div></div>
+<div id="tab-reco" class="tab-content"><div id="recoContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
+<div id="tab-audit" class="tab-content"><div id="auditContent"><div class="loading"><div class="spinner"></div>Audit en cours...</div></div></div>
+
+<!-- MODAL INSTALL AGENT -->
+<div id="agentModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-width:520px;width:90%;max-height:90vh;overflow-y:auto;padding:24px;">
+        <div id="agentModalContent"></div>
+    </div>
+</div>
+
+<footer>&copy; 2026 <b>Ayi NEDJIMI Consultants</b> - Cluster Manager - Tous droits reserves</footer>
+
+<script>
+const RI={{refresh_interval}}*1000;
+let lastData=null,logsLoaded=false,recoLoaded=false,auditLoaded=false;
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+        const name=t.dataset.tab;
+        document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
+        document.querySelectorAll('.tab-content').forEach(x=>x.classList.toggle('active',x.id==='tab-'+name));
+        if(name==='advanced'&&lastData)renderAdvanced(lastData);
+        if(name==='logs'&&!logsLoaded)loadLogs();
+        if(name==='reco'&&!recoLoaded)loadReco();
+        if(name==='audit')loadAudit();
+    });
+});
+
+const pc=p=>p<60?'var(--green)':p<85?'var(--yellow)':'var(--red)';
+const pcl=p=>p<60?'cg':p<85?'cy':'cr';
+const psiC=v=>v<1?'var(--green)':v<10?'var(--yellow)':'var(--red)';
+const psiS=v=>v<1?'OK':v<5?'Leger':v<15?'Modere':'Critique';
+const psiCl=v=>v<1?'cg':v<5?'cy':'cr';
+
+function gauge(p,l,d){const r=28,c=2*Math.PI*r,o=c-(p/100)*c,col=pc(p);return`<div class="g"><div class="g-ring"><svg width="68" height="68" viewBox="0 0 68 68"><circle class="bg" cx="34" cy="34" r="${r}"/><circle class="fl" cx="34" cy="34" r="${r}" stroke="${col}" stroke-dasharray="${c}" stroke-dashoffset="${o}"/></svg><div class="g-val" style="color:${col}">${p}%</div></div><div class="g-lbl">${l}</div>${d?`<div class="g-det">${d}</div>`:''}</div>`;}
+function miniBar(p){return`<div class="mini-bar"><div class="mini-fill ${pcl(p)}" style="width:${p}%"></div></div>`;}
+function badge(s){return`<span class="badge ${s==='running'?'b-run':'b-stop'}">${s}</span>`;}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+function vmTable(items,type){
+    if(!items.length)return`<div class="empty">Aucun ${esc(type)}</div>`;
+    const hasAgent=items.some(v=>v.agent_status!==undefined);
+    let h=`<table><thead><tr><th>ID</th><th>Nom</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disque</th><th>Net I/O</th>${hasAgent?'<th>Agent</th>':''}<th>Uptime</th></tr></thead><tbody>`;
+    for(const v of items.sort((a,b)=>a.vmid-b.vmid)){const r=v.status==='running';
+        let agentHtml='';
+        if(hasAgent){
+            const as=v.agent_status||'';
+            const ac=v.agent_running?'cg':v.agent_enabled?'cy':'cr';
+            const aIcon=v.agent_running?'\u2705':v.agent_enabled?'\u26A0':'\u274C';
+            const aTitle=v.agent_running&&v.guest_agent?.os?v.guest_agent.os:as;
+            const clickable=!v.agent_running?` onclick="openInstallAgent('${v.vmid}','${esc(v.name)}','${esc(v._node||'')}','')" style="cursor:pointer;font-size:.65rem" title="Cliquer pour installer l'agent"`:'style="font-size:.65rem"';
+            agentHtml=`<td title="${esc(aTitle)}"><span class="${ac}" ${clickable}>${aIcon} ${v.agent_running?'OK'+(v.guest_agent?.os?' ('+esc(v.guest_agent.os)+')':''):v.agent_enabled?'Config\u{1F517}':'\u{1F4E5} Installer'}</span></td>`;
+        }
+        h+=`<tr><td style="color:var(--text3)">${v.vmid}</td><td><b>${esc(v.name)}</b></td><td>${badge(v.status)}</td>
+        <td>${r?`<span class="${pcl(v.cpu)}">${v.cpu}%</span>`:'-'}</td>
+        <td><div style="font-size:.66rem">${esc(v.mem)}/${esc(v.maxmem)}</div>${r?miniBar(v.mem_pct):''}</td>
+        <td style="color:var(--text2);font-size:.66rem">${esc(v.disk)}</td>
+        <td style="color:var(--text3);font-size:.62rem">${r?'\u2B07'+esc(v.netin)+' \u2B06'+esc(v.netout):'-'}</td>
+        ${agentHtml}
+        <td style="color:var(--text3)">${r?esc(v.uptime):'-'}</td></tr>`;
+        // Agent detail row
+        if(v.agent_running&&v.guest_agent){
+            const g=v.guest_agent, rrd=g.rrd||{};
+            const colSpan=hasAgent?9:8;
+            h+=`<tr><td colspan="${colSpan}" style="padding:0;border:none"><div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;margin:2px 4px 8px;padding:10px 12px;font-size:.68rem">`;
+            // Header info
+            h+=`<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;align-items:center">`;
+            h+=`<span style="font-weight:600;color:var(--accent)">\u{1F4BB} ${esc(g.hostname||'')} - ${esc(g.os||'')}</span>`;
+            if(g.kernel) h+=`<span style="color:var(--text3)">Kernel: ${esc(g.kernel)}</span>`;
+            if(g.timezone) h+=`<span style="color:var(--text3)">TZ: ${esc(g.timezone)}</span>`;
+            if(g.vcpus_online!==undefined) h+=`<span style="color:var(--text3)">vCPU: ${g.vcpus_online}/${g.vcpus_total}</span>`;
+            h+=`</div>`;
+            // Metrics grid
+            if(rrd.cpu!==undefined){
+                h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:8px">`;
+                h+=`<div class="m"><div class="m-val" style="color:${pc(rrd.cpu)}">${rrd.cpu}%</div><div class="m-lbl">CPU</div></div>`;
+                h+=`<div class="m"><div class="m-val" style="color:${pc(rrd.mem_pct)}">${rrd.mem_pct}%</div><div class="m-lbl">RAM ${esc(rrd.mem_used)}/${esc(rrd.mem_total)}</div></div>`;
+                h+=`<div class="m"><div class="m-val">${esc(rrd.diskread)}</div><div class="m-lbl">Disk Read</div></div>`;
+                h+=`<div class="m"><div class="m-val">${esc(rrd.diskwrite)}</div><div class="m-lbl">Disk Write</div></div>`;
+                h+=`<div class="m"><div class="m-val" style="color:var(--cyan)">${esc(rrd.netin)}</div><div class="m-lbl">Net In</div></div>`;
+                h+=`<div class="m"><div class="m-val" style="color:var(--purple)">${esc(rrd.netout)}</div><div class="m-lbl">Net Out</div></div>`;
+                // PSI
+                if(rrd.psi_cpu_some>0||rrd.psi_mem_some>0||rrd.psi_io_some>0){
+                    h+=`<div class="m"><div class="m-val" style="color:${psiC(rrd.psi_cpu_some)}">${rrd.psi_cpu_some}%</div><div class="m-lbl">PSI CPU</div></div>`;
+                    h+=`<div class="m"><div class="m-val" style="color:${psiC(rrd.psi_mem_full)}">${rrd.psi_mem_full}%</div><div class="m-lbl">PSI Mem</div></div>`;
+                    h+=`<div class="m"><div class="m-val" style="color:${psiC(rrd.psi_io_full)}">${rrd.psi_io_full}%</div><div class="m-lbl">PSI I/O</div></div>`;
+                }
+                h+=`</div>`;
+            }
+            // Network interfaces
+            if(g.interfaces&&g.interfaces.length){
+                h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">`;
+                for(const iface of g.interfaces){
+                    const ipStr=iface.ips.join(', ')||'pas d\'IP';
+                    h+=`<div style="padding:4px 8px;border-radius:5px;background:#fff;border:1px solid var(--border)">`;
+                    h+=`<span style="font-weight:600;color:var(--cyan)">${esc(iface.name)}</span> `;
+                    h+=`<span>${esc(ipStr)}</span> `;
+                    h+=`<span style="color:var(--text3)">RX:${esc(iface.rx_bytes)} TX:${esc(iface.tx_bytes)}</span>`;
+                    if(iface.rx_errs>0||iface.tx_errs>0) h+=` <span class="cr">Err:${iface.rx_errs+iface.tx_errs}</span>`;
+                    if(iface.rx_dropped>0) h+=` <span class="cy">Drop:${iface.rx_dropped}</span>`;
+                    h+=`</div>`;
+                }
+                h+=`</div>`;
+            }
+            // Filesystems
+            if(g.filesystems&&g.filesystems.length){
+                h+=`<div style="display:flex;gap:6px;flex-wrap:wrap">`;
+                for(const fs of g.filesystems){
+                    h+=`<div style="padding:4px 8px;border-radius:5px;background:#fff;border:1px solid var(--border);min-width:140px">`;
+                    h+=`<div style="font-weight:600">${esc(fs.mount)}</div>`;
+                    h+=`<div class="sto-row"><span class="sto-pct ${pcl(fs.pct)}">${fs.pct}%</span><div class="sto-bar" style="max-width:50px">${miniBar(fs.pct)}</div><span style="color:var(--text3)">${esc(fs.used)}/${esc(fs.total)}</span></div>`;
+                    h+=`</div>`;
+                }
+                h+=`</div>`;
+            }
+            h+=`</div></td></tr>`;
+        }
+    }
+    return h+'</tbody></table>';}
+function stoTable(items){
+    if(!items.length)return'<div class="empty">Aucun stockage</div>';
+    let h='<table><thead><tr><th>Nom</th><th>Type</th><th>Plugin</th><th>Utilisation</th><th>Contenu</th></tr></thead><tbody>';
+    for(const s of items){h+=`<tr><td><b>${esc(s.storage)}</b></td><td style="color:var(--text3)">${esc(s.type)}</td><td style="color:var(--text3)">${esc(s.plugintype)}</td>
+        <td><div class="sto-row"><span class="sto-pct ${pcl(s.pct)}">${s.pct}%</span><div class="sto-bar">${miniBar(s.pct)}</div><span class="sto-det">${esc(s.used)}/${esc(s.total)}</span></div></td>
+        <td style="color:var(--text3);font-size:.62rem">${esc(s.content)}</td></tr>`;}
+    return h+'</tbody></table>';}
+
+function renderNode(n){
+    const ico=n.online?'\u{1F5A5}':'\u{1F6AB}';
+    let h=`<div class="card"><div class="card-h"><div class="card-title"><div class="card-icon">${ico}</div><div><div class="card-name">${esc(n.name)}</div><div class="card-ip">${esc(n.ip)}</div></div></div><span class="badge ${n.online?'b-on':'b-off'}">${n.online?'En ligne':'Hors ligne'}</span></div>`;
+    if(!n.online)return h+'</div>';
+    if(n.stats){const s=n.stats;
+        h+=`<div class="gauges">${gauge(s.cpu_usage,'CPU',s.cpu_cores+' cores')}${gauge(s.memory_pct,'RAM',esc(s.memory_used)+'/'+esc(s.memory_total))}${gauge(s.disk_pct,'Disque',esc(s.disk_used)+'/'+esc(s.disk_total))}${gauge(s.swap_pct,'Swap',esc(s.swap_used)+'/'+esc(s.swap_total))}</div>`;
+        h+='<div class="metrics">';
+        if(n.rrd){h+=`<div class="m"><div class="m-val">${n.rrd.loadavg}</div><div class="m-lbl">Load Avg</div></div><div class="m"><div class="m-val">${n.rrd.iowait}%</div><div class="m-lbl">IO Wait</div></div><div class="m"><div class="m-val" style="color:var(--cyan)">\u2B07${esc(n.rrd.netin)}</div><div class="m-lbl">Net In</div></div><div class="m"><div class="m-val" style="color:var(--purple)">\u2B06${esc(n.rrd.netout)}</div><div class="m-lbl">Net Out</div></div>`;}
+        h+=`<div class="m"><div class="m-val">${esc(s.uptime)}</div><div class="m-lbl">Uptime</div></div></div>`;
+        h+=`<div class="n-meta"><span>${esc(s.cpu_model)}</span><span>${esc(s.pveversion)}</span><span>Kernel: ${esc((s.kernel||'').split(' ')[0])}</span></div>`;}
+    if(n.services.length){const fail=n.services.filter(s=>s.state!=='running'&&s.critical);
+        h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Services${fail.length?` <span style="color:var(--red)">(${fail.length} alertes)</span>`:''}</span></div><div class="svc-grid">`;
+        for(const s of n.services){const ok=s.state==='running';h+=`<div class="svc ${ok?'svc-ok':'svc-fail'}"><div class="dot ${ok?'dot-g':'dot-r'}"></div>${esc(s.name)}</div>`;}h+='</div></div>';}
+    if(n.disks.length){h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Disques physiques</span></div><div class="disk-grid">`;
+        for(const d of n.disks){const ok=d.health==='OK'||d.health==='PASSED';h+=`<div class="disk-item"><div class="dot ${ok?'dot-g':'dot-r'}"></div><div><div>${esc(d.devpath)} - ${esc(d.size)}</div><div class="disk-model">${esc(d.model)} | SMART:${esc(d.health)}</div></div></div>`;}h+='</div></div>';}
+    if(n.network_interfaces.length){h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Interfaces reseau</span></div><div class="net-grid">`;
+        for(const i of n.network_interfaces){h+=`<div class="net-item"><div><div class="net-iface">${esc(i.iface)}</div><div class="net-det">${esc(i.address)}/${esc(i.netmask)} ${i.gateway?'gw '+esc(i.gateway):''}</div></div></div>`;}h+='</div></div>';}
+    if(n.vms.length){const r=n.vms.filter(v=>v.status==='running').length;n.vms.forEach(v=>v._node=n.name);h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Machines Virtuelles</span><span class="sec-c">${r}/${n.vms.length}</span></div>${vmTable(n.vms,'VM')}</div>`;}
+    if(n.containers.length){const r=n.containers.filter(c=>c.status==='running').length;h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Containers LXC</span><span class="sec-c">${r}/${n.containers.length}</span></div>${vmTable(n.containers,'container')}</div>`;}
+    if(n.storage.length){h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Stockage</span></div>${stoTable(n.storage)}</div>`;}
+    return h+'</div>';}
+
+function renderTasks(tasks){
+    if(!tasks.length)return'<div class="empty">Aucune tache</div>';
+    let h='<table><thead><tr><th>Type</th><th>Noeud</th><th>User</th><th>Status</th><th>Debut</th><th>Fin</th></tr></thead><tbody>';
+    for(const t of tasks){const c=t.status==='OK'?'t-ok':t.status?'t-err':'t-warn';
+        h+=`<tr><td><b>${esc(t.type)}</b></td><td>${esc(t.node)}</td><td style="color:var(--text3)">${esc(t.user)}</td><td class="${c}">${esc(t.status||'...')}</td><td style="color:var(--text3)">${esc(t.starttime)}</td><td style="color:var(--text3)">${esc(t.endtime)}</td></tr>`;}
+    return h+'</tbody></table>';}
+
+// === ADVANCED ===
+let sparkCtr=0;
+function drawSparkline(id,vals,color){setTimeout(()=>{const c=document.getElementById(id);if(!c)return;const ctx=c.getContext('2d');const w=c.width=c.offsetWidth*2,h=c.height=60;ctx.clearRect(0,0,w,h);if(!vals.length)return;const max=Math.max(...vals,1),step=w/(vals.length-1||1);ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2;ctx.lineJoin='round';vals.forEach((v,i)=>{const x=i*step,y=h-(v/max)*(h-4)-2;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();ctx.lineTo((vals.length-1)*step,h);ctx.lineTo(0,h);ctx.closePath();ctx.fillStyle=color.replace(')',',0.1)').replace('rgb','rgba');ctx.fill();},50);}
+
+function renderAdvanced(data){
+    let h='';
+    for(const n of data.nodes){
+        if(!n.online||!n.rrd)continue;const rrd=n.rrd,hist=n.rrd_history||[],s=n.stats;
+        h+=`<div class="card"><div class="card-h"><div class="card-title"><div class="card-icon">\u{1F4CA}</div><div><div class="card-name">${esc(n.name)} - Performance</div><div class="card-ip">${esc(n.ip)}</div></div></div></div>`;
+        const cpuF=(100-s.cpu_usage).toFixed(1),cA=((s.cpu_cores*(100-s.cpu_usage))/100).toFixed(1);
+        h+=`<div class="perf-row">
+            <div class="perf"><div class="perf-val" style="color:${pc(s.cpu_usage)}">${s.cpu_usage}%</div><div class="perf-lbl">CPU</div><div class="perf-status" style="color:${pc(s.cpu_usage)}">${cpuF}% libre (${cA} cores)</div></div>
+            <div class="perf"><div class="perf-val" style="color:${pc(s.memory_pct)}">${s.memory_pct}%</div><div class="perf-lbl">RAM</div><div class="perf-status" style="color:var(--text3)">Dispo: ${esc(rrd.mem_available)}</div></div>
+            <div class="perf"><div class="perf-val">${rrd.loadavg}</div><div class="perf-lbl">Load Avg</div><div class="perf-status" style="color:${rrd.loadavg>s.cpu_cores?'var(--red)':'var(--green)'}">${rrd.loadavg>s.cpu_cores?'Surcharge':'Normal'} (${s.cpu_cores} cores)</div></div>
+            <div class="perf"><div class="perf-val">${rrd.iowait}%</div><div class="perf-lbl">IO Wait</div><div class="perf-status" style="color:${rrd.iowait>5?'var(--red)':rrd.iowait>1?'var(--yellow)':'var(--green)'}">${rrd.iowait>5?'Congestion':rrd.iowait>1?'Modere':'Normal'}</div></div>
+            <div class="perf"><div class="perf-val">${s.swap_pct}%</div><div class="perf-lbl">Swap</div><div class="perf-status" style="color:${s.swap_pct>20?'var(--red)':s.swap_pct>0?'var(--yellow)':'var(--green)'}">${s.swap_pct>20?'Pression!':s.swap_pct>0?'Actif':'OK'}</div></div>
+        </div>`;
+        h+=`<div class="sec"><div class="sec-h"><span class="sec-t">Pressure Stall Information (PSI)</span></div></div><div class="psi-grid">
+            <div class="psi"><div class="psi-title">Contention CPU</div><div class="psi-val" style="color:${psiC(rrd.psi_cpu_some)}">${rrd.psi_cpu_some}%</div><div class="psi-sub">Taches en attente CPU</div><div class="psi-bar"><div class="psi-fill ${psiCl(rrd.psi_cpu_some)}" style="width:${Math.min(rrd.psi_cpu_some*5,100)}%"></div></div><div class="psi-sub" style="font-weight:600;color:${psiC(rrd.psi_cpu_some)}">${psiS(rrd.psi_cpu_some)}</div></div>
+            <div class="psi"><div class="psi-title">Pression Memoire</div><div class="psi-val" style="color:${psiC(rrd.psi_memory_some)}">${rrd.psi_memory_some}%</div><div class="psi-sub">Some: ${rrd.psi_memory_some}% | Full: ${rrd.psi_memory_full}%</div><div class="psi-bar"><div class="psi-fill ${psiCl(rrd.psi_memory_some)}" style="width:${Math.min(rrd.psi_memory_some*5,100)}%"></div></div><div class="psi-sub" style="font-weight:600;color:${psiC(rrd.psi_memory_full)}">${rrd.psi_memory_full>0?'Reclamation':'Aucune pression'}</div></div>
+            <div class="psi"><div class="psi-title">Congestion I/O</div><div class="psi-val" style="color:${psiC(rrd.psi_io_some)}">${rrd.psi_io_some}%</div><div class="psi-sub">Some: ${rrd.psi_io_some}% | Full: ${rrd.psi_io_full}%</div><div class="psi-bar"><div class="psi-fill ${psiCl(rrd.psi_io_some)}" style="width:${Math.min(rrd.psi_io_some*5,100)}%"></div></div><div class="psi-sub" style="font-weight:600;color:${psiC(rrd.psi_io_full)}">${rrd.psi_io_full>0?'Blocage I/O':'Fluide'}</div></div>
+        </div>`;
+        if(hist.length>1){const ids={c:`sp${sparkCtr}_c`,m:`sp${sparkCtr}_m`,i:`sp${sparkCtr}_i`,l:`sp${sparkCtr}_l`,ni:`sp${sparkCtr}_ni`,no:`sp${sparkCtr}_no`};sparkCtr++;
+            h+=`<div class="spark-grid"><div class="spark"><div class="spark-label">CPU (1h)</div><div class="spark-val" style="color:${pc(s.cpu_usage)}">${s.cpu_usage}%</div><canvas id="${ids.c}"></canvas></div>
+            <div class="spark"><div class="spark-label">RAM (1h)</div><div class="spark-val" style="color:${pc(s.memory_pct)}">${s.memory_pct}%</div><canvas id="${ids.m}"></canvas></div>
+            <div class="spark"><div class="spark-label">IO Wait (1h)</div><div class="spark-val">${rrd.iowait}%</div><canvas id="${ids.i}"></canvas></div>
+            <div class="spark"><div class="spark-label">Load (1h)</div><div class="spark-val">${rrd.loadavg}</div><canvas id="${ids.l}"></canvas></div>
+            <div class="spark"><div class="spark-label">Net In (1h)</div><div class="spark-val" style="color:var(--cyan)">${esc(rrd.netin)}</div><canvas id="${ids.ni}"></canvas></div>
+            <div class="spark"><div class="spark-label">Net Out (1h)</div><div class="spark-val" style="color:var(--purple)">${esc(rrd.netout)}</div><canvas id="${ids.no}"></canvas></div></div>`;
+            setTimeout(()=>{drawSparkline(ids.c,hist.map(h=>h.cpu),'rgb(37,99,235)');drawSparkline(ids.m,hist.map(h=>h.mem),'rgb(124,58,237)');drawSparkline(ids.i,hist.map(h=>h.io),'rgb(217,119,6)');drawSparkline(ids.l,hist.map(h=>h.load),'rgb(22,163,74)');drawSparkline(ids.ni,hist.map(h=>h.netin),'rgb(8,145,178)');drawSparkline(ids.no,hist.map(h=>h.netout),'rgb(124,58,237)');},100);}
+        h+='</div>';}
+    document.getElementById('advGrid').innerHTML=h||'<div class="loading">Aucune donnee</div>';}
+
+// === LOGS ===
+async function loadLogs(){
+    const el=document.getElementById('logsContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Chargement des journaux...</div>';
+    try{const r=await fetch('/api/logs');const data=await r.json();logsLoaded=true;renderLogs(data);}
+    catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}}
+
+function renderLogs(data){
+    const el=document.getElementById('logsContent');
+    let h=`<div class="log-controls"><label>Filtre:</label><select id="logFilter" onchange="filterLogs()"><option value="all">Tous</option><option value="error">Erreurs</option><option value="warning">Warnings</option></select>
+        <input type="text" id="logSearch" placeholder="Rechercher..." oninput="filterLogs()" style="width:200px;">
+        <button class="btn" onclick="logsLoaded=false;loadLogs();" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Recharger</button></div>`;
+
+    // Task errors across nodes
+    let errCount=0;
+    for(const n of data.nodes||[]){errCount+=n.task_errors.length;}
+    if(errCount>0){
+        h+=`<div class="log-panel"><div class="sec-h"><span class="sec-t" style="color:var(--red)">Taches en erreur (${errCount})</span></div><div class="sec"><table><thead><tr><th>Noeud</th><th>Type</th><th>Status</th><th>User</th><th>Date</th></tr></thead><tbody>`;
+        for(const n of data.nodes||[]){for(const t of n.task_errors){
+            h+=`<tr style="background:var(--red-bg)"><td><b>${esc(n.name)}</b></td><td>${esc(t.type)}</td><td class="t-err" style="font-size:.65rem">${esc(t.status).substring(0,80)}</td><td style="color:var(--text3)">${esc(t.user)}</td><td style="color:var(--text3)">${esc(t.starttime)}</td></tr>`;}}
+        h+='</tbody></table></div></div>';}
+
+    // Cluster log
+    if(data.cluster_log&&data.cluster_log.length){
+        h+=`<div class="log-panel"><div class="sec-h"><span class="sec-t">Journal cluster (${data.cluster_log.length} entrees)</span></div><div class="sec"><table><thead><tr><th>Date</th><th>Noeud</th><th>Service</th><th>Message</th><th>User</th></tr></thead><tbody>`;
+        for(const l of data.cluster_log){h+=`<tr><td style="color:var(--text3);white-space:nowrap">${esc(l.time)}</td><td>${esc(l.node)}</td><td style="color:var(--text3)">${esc(l.tag)}</td><td>${esc(l.msg)}</td><td style="color:var(--text3)">${esc(l.user)}</td></tr>`;}
+        h+='</tbody></table></div></div>';}
+
+    // Per-node syslog
+    for(const n of data.nodes||[]){
+        const errs=n.syslog.filter(l=>l.level==='error').length;
+        const warns=n.syslog.filter(l=>l.level==='warning').length;
+        h+=`<div class="log-panel" data-node="${esc(n.name)}"><div class="sec-h"><span class="sec-t">${esc(n.name)} - Syslog${errs?` <span style="color:var(--red)">(${errs} erreurs)</span>`:''}${warns?` <span style="color:var(--yellow)">(${warns} warnings)</span>`:''}</span></div>`;
+        h+='<div class="log-lines" id="logs-'+esc(n.name)+'">';
+        n.syslog.forEach((l,i)=>{
+            const cls=l.level==='error'?'l-err':l.level==='warning'?'l-warn':'';
+            h+=`<div class="log-line ${cls}" data-level="${l.level}"><span class="ln">${i+1}</span>${esc(l.line)}</div>`;});
+        h+='</div></div>';}
+    el.innerHTML=h;}
+
+function filterLogs(){
+    const f=document.getElementById('logFilter').value;
+    const s=document.getElementById('logSearch').value.toLowerCase();
+    document.querySelectorAll('.log-line').forEach(l=>{
+        const level=l.dataset.level;
+        const text=l.textContent.toLowerCase();
+        const showLevel=f==='all'||(f==='error'&&level==='error')||(f==='warning'&&(level==='warning'||level==='error'));
+        const showSearch=!s||text.includes(s);
+        l.style.display=(showLevel&&showSearch)?'':'none';});}
+
+// === RECOMMENDATIONS ===
+async function loadReco(){
+    const el=document.getElementById('recoContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Analyse de la configuration...</div>';
+    try{const r=await fetch('/api/recommendations');const recs=await r.json();recoLoaded=true;renderReco(recs);}
+    catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}}
+
+function renderReco(recs){
+    const el=document.getElementById('recoContent');
+    const crits=recs.filter(r=>r.severity==='critical'),warns=recs.filter(r=>r.severity==='warning'),infos=recs.filter(r=>r.severity==='info');
+    let h=`<div class="reco-summary"><div class="reco-badge crit"><div class="dot dot-r"></div>${crits.length} Critique(s)</div><div class="reco-badge wb"><div class="dot dot-y"></div>${warns.length} Attention</div><div class="reco-badge ib"><div class="dot" style="background:var(--accent)"></div>${infos.length} Info</div>
+        <button class="btn" onclick="recoLoaded=false;loadReco();" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Re-analyser</button></div>`;
+    const cats={};for(const r of recs){if(!cats[r.category])cats[r.category]=[];cats[r.category].push(r);}
+    const ord=Object.keys(cats).sort((a,b)=>{const f=x=>cats[x].some(r=>r.severity==='critical')?0:cats[x].some(r=>r.severity==='warning')?1:2;return f(a)-f(b);});
+    h+='<div class="reco-list">';
+    for(const cat of ord){const items=cats[cat].sort((a,b)=>{const o={critical:0,warning:1,info:2};return(o[a.severity]||3)-(o[b.severity]||3);});
+        h+=`<div class="reco-cat"><div class="reco-cat-title">${esc(cat)} (${items.length})</div>`;
+        for(const r of items){const cls=r.severity==='critical'?'rcrit':r.severity==='warning'?'rwarn':'rinfo';
+            h+=`<div class="reco-card"><div class="reco-bar ${cls}"></div><div><div class="reco-title">${esc(r.title)}</div><div class="reco-detail">${esc(r.detail)}</div><div class="reco-vals"><div><div class="reco-label">Actuel</div><div class="reco-cur">${esc(r.current)}</div></div><div><div class="reco-label">Recommande</div><div class="reco-rec">${esc(r.recommended)}</div></div></div></div></div>`;}
+        h+='</div>';}
+    el.innerHTML=h+'</div>';}
+
+// === AUDIT ===
+async function refreshAudit(){
+    await fetchStatus();
+    loadAudit();
+}
+function loadAudit(){
+    if(!lastData){document.getElementById('auditContent').innerHTML='<div class="loading">Pas de donnees. Cliquez sur Rafraichir.</div>';return;}
+    const el=document.getElementById('auditContent');
+    let score=100,checks=[];
+    const data=lastData,cl=data.cluster,nodes=data.nodes;
+    const on=nodes.filter(n=>n.online).length,tot=nodes.length;
+
+    function check(cat,name,ok,detail,pts){checks.push({cat,name,ok:ok?'good':ok===null?'mid':'bad',detail,pts:ok?0:pts});if(!ok)score-=pts;}
+
+    // Cluster
+    check('Cluster','Quorum',cl.quorate,'Quorum '+(cl.quorate?'OK':'PERDU'),20);
+    check('Cluster','Tous les noeuds en ligne',on===tot,`${on}/${tot} noeuds en ligne`,15);
+    check('Cluster','HA configuree',cl.ha&&cl.ha.status==='OK','HA: '+(cl.ha?.status||'N/A'),5);
+
+    // Per node - Grok thresholds
+    for(const n of nodes){
+        if(!n.online)continue;const s=n.stats;if(!s)continue;
+        // CPU: <60 ok, 60-85 warn, >90 crit
+        check('Hote - CPU',`${n.name}: CPU < 60%`,s.cpu_usage<60,`CPU: ${s.cpu_usage}%`,s.cpu_usage>90?8:4);
+        // RAM: <80 ok, 80-90 warn, >95 crit
+        check('Hote - Memoire',`${n.name}: RAM < 80%`,s.memory_pct<80,`RAM: ${s.memory_pct}%`,s.memory_pct>95?8:4);
+        // Swap: 0 ok, >0 warn, >512MB crit
+        check('Hote - Memoire',`${n.name}: Swap = 0`,s.swap_used_bytes===0,`Swap: ${esc(s.swap_used)}`,s.swap_used_bytes>512*1024*1024?8:3);
+        // Disk: <70 ok, 70-85 warn, >90 crit
+        check('Hote - Stockage',`${n.name}: Disque root < 70%`,s.disk_pct<70,`Disque: ${s.disk_pct}%`,s.disk_pct>90?8:3);
+
+        if(n.rrd){
+            // Load: <= cores ok, 1.5x warn, 2x crit
+            check('Hote - CPU',`${n.name}: Load <= ${s.cpu_cores} cores`,n.rrd.loadavg<=s.cpu_cores,`Load ${n.rrd.loadavg} / ${s.cpu_cores} cores`,n.rrd.loadavg>s.cpu_cores*2?6:3);
+            // IO Wait: <5 ok, 5-10 warn, >15 crit
+            check('Hote - I/O',`${n.name}: IO Wait < 5%`,n.rrd.iowait<5,`IO Wait: ${n.rrd.iowait}%`,n.rrd.iowait>15?6:3);
+            // PSI
+            check('Hote - PSI',`${n.name}: Contention CPU < 5%`,n.rrd.psi_cpu_some<5,`PSI CPU some: ${n.rrd.psi_cpu_some}%`,2);
+            check('Hote - PSI',`${n.name}: Pression memoire full < 1%`,n.rrd.psi_memory_full<1,`PSI Mem full: ${n.rrd.psi_memory_full}%`,4);
+            check('Hote - PSI',`${n.name}: Congestion I/O full < 1%`,n.rrd.psi_io_full<1,`PSI IO full: ${n.rrd.psi_io_full}%`,3);
+        }
+        // Services
+        const failSvc=n.services.filter(s=>s.state!=='running'&&s.critical);
+        check('Services',`${n.name}: Services critiques`,failSvc.length===0,failSvc.length?failSvc.map(s=>s.name).join(', ')+' DOWN':'Tous OK',10);
+        // Disks SMART
+        for(const d of n.disks){check('Materiel',`${n.name}: ${d.devpath} SMART`,d.health==='OK'||d.health==='PASSED',`SMART: ${d.health}`,10);}
+        // Storage per volume: <70 ok, 70-85 warn, >90 crit
+        for(const st of n.storage){check('Stockage',`${n.name}: ${st.storage} < 70%`,st.pct<70,`${st.pct}% utilise`,st.pct>90?6:2);}
+
+        // VM checks (Grok thresholds)
+        for(const v of n.vms){
+            if(v.status==='running'){
+                check('VM - Performance',`${v.name} (${v.vmid}): CPU < 70%`,v.cpu<70,`CPU: ${v.cpu}%`,v.cpu>=100?4:2);
+                check('VM - Performance',`${v.name} (${v.vmid}): RAM < 80%`,v.mem_pct<80,`RAM: ${v.mem_pct}%`,v.mem_pct>95?4:2);
+            }
+            // Agent check
+            check('VM - Agent QEMU',`${v.name} (${v.vmid}): Agent configure`,v.agent_enabled,v.agent_enabled?'Active':'Non configure',2);
+            if(v.status==='running'&&v.agent_enabled){
+                check('VM - Agent QEMU',`${v.name} (${v.vmid}): Agent joignable`,v.agent_running,v.agent_running?'Connecte'+(v.guest_agent?.os?' ('+v.guest_agent.os+')':''):'Non joignable - installer qemu-guest-agent',3);
+            }
+        }
+        for(const c of n.containers){
+            if(c.status!=='running')continue;
+            check('Container',`${c.name} (${c.vmid}): CPU < 70%`,c.cpu<70,`CPU: ${c.cpu}%`,c.cpu>=100?4:2);
+            check('Container',`${c.name} (${c.vmid}): RAM < 80%`,c.mem_pct<80,`RAM: ${c.mem_pct}%`,c.mem_pct>95?4:2);
+        }
+    }
+
+    score=Math.max(0,Math.min(100,score));
+    const scoreColor=score>=80?'var(--green)':score>=60?'var(--yellow)':'var(--red)';
+    const scoreLabel=score>=90?'Excellent':score>=80?'Bon':score>=60?'Moyen':'Critique';
+
+    let h=`<div class="audit-grid"><div class="audit-card" style="grid-column:1/-1"><div class="audit-score"><div class="num" style="color:${scoreColor}">${score}/100</div><div class="lbl">Score de sante - ${scoreLabel}</div><div style="margin-top:8px;font-size:.7rem;color:var(--text3)">${checks.filter(c=>c.ok==='good').length}/${checks.length} controles OK | Audit: ${new Date().toLocaleString('fr-FR')}</div><button class="btn" onclick="refreshAudit()" style="margin-top:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Rafraichir l'audit</button></div></div>`;
+
+    // Group by category
+    const cats={};for(const c of checks){if(!cats[c.cat])cats[c.cat]=[];cats[c.cat].push(c);}
+    for(const[cat,items] of Object.entries(cats)){
+        const ok=items.filter(i=>i.ok==='good').length;
+        h+=`<div class="audit-card"><div class="audit-card-h"><span class="ico">${cat==='Cluster'?'\u{1F310}':cat==='Performance'?'\u{1F4CA}':cat==='Services'?'\u{2699}':cat==='Materiel'?'\u{1F4BE}':'\u{1F4E6}'}</span>${esc(cat)} (${ok}/${items.length} OK)</div><div class="audit-body">`;
+        for(const c of items){h+=`<div class="audit-row"><div class="audit-k">${esc(c.name)}</div><div class="audit-v ${c.ok}">${esc(c.detail)}</div></div>`;}
+        h+='</div></div>';}
+    h+='</div>';
+    el.innerHTML=h;
+    auditLoaded=true;}
+
+// === QUICK VIEW ===
+function renderQuick(data){
+    const nodes=data.nodes,cl=data.cluster;
+    const alerts=computeAlerts(data);
+    const score=Math.max(0,100-alerts.filter(a=>a.level==='err').length*15-alerts.filter(a=>a.level==='warn').length*5);
+    const sCol=score>=80?'var(--green)':score>=60?'var(--yellow)':'var(--red)';
+    const sLbl=score>=90?'Excellent':score>=80?'Bon':score>=60?'Moyen':'Critique';
+
+    let h=`<div class="quick-wrap"><div class="quick-header">
+        <div class="quick-score"><div class="big" style="color:${sCol}">${score}</div><div class="lbl">Score sante / 100<br>${sLbl}</div></div>
+        <div class="quick-alerts">`;
+    if(!alerts.length) h+='<div class="qa"><div class="dot dot-g"></div><b style="color:var(--green)">Tout est operationnel</b></div>';
+    else for(const a of alerts) h+=`<div class="qa"><div class="dot ${a.level==='err'?'dot-r':'dot-y'}"></div>${esc(a.msg)}</div>`;
+    h+='</div></div>';
+
+    // Nodes overview with Grok thresholds
+    h+='<div class="quick-nodes">';
+    for(const n of nodes){
+        if(!n.online){h+=`<div class="qn"><div class="qn-h"><div><div class="qn-name">${esc(n.name)}</div><div class="qn-ip">${esc(n.ip)}</div></div><span class="badge b-off">Hors ligne</span></div></div>`;continue;}
+        const s=n.stats;if(!s)continue;
+        // Grok thresholds
+        const cpuLvl=s.cpu_usage<60?'ok':s.cpu_usage<85?'warn':'crit';
+        const memLvl=s.memory_pct<80?'ok':s.memory_pct<90?'warn':'crit';
+        const diskLvl=s.disk_pct<70?'ok':s.disk_pct<85?'warn':'crit';
+        const swapLvl=s.swap_used_bytes===0?'ok':s.swap_used_bytes<512*1024*1024?'warn':'crit';
+        const loadLvl=n.rrd&&n.rrd.loadavg<=s.cpu_cores?'ok':n.rrd&&n.rrd.loadavg<=s.cpu_cores*1.5?'warn':'crit';
+        const ioLvl=n.rrd?(n.rrd.iowait<5?'ok':n.rrd.iowait<10?'warn':'crit'):'ok';
+
+        h+=`<div class="qn"><div class="qn-h"><div><div class="qn-name">${esc(n.name)}</div><div class="qn-ip">${esc(n.ip)}</div></div><span class="badge b-on">En ligne</span></div>`;
+        h+=`<div class="qn-metrics">
+            <div class="qm ${cpuLvl}"><div class="qm-val">${s.cpu_usage}%</div><div class="qm-lbl">CPU</div><div class="qm-bar"><div class="qm-fill ${pcl(s.cpu_usage)}" style="width:${s.cpu_usage}%"></div></div></div>
+            <div class="qm ${memLvl}"><div class="qm-val">${s.memory_pct}%</div><div class="qm-lbl">RAM</div><div class="qm-bar"><div class="qm-fill ${pcl(s.memory_pct)}" style="width:${s.memory_pct}%"></div></div></div>
+            <div class="qm ${diskLvl}"><div class="qm-val">${s.disk_pct}%</div><div class="qm-lbl">Disque</div><div class="qm-bar"><div class="qm-fill ${pcl(s.disk_pct)}" style="width:${s.disk_pct}%"></div></div></div>
+        </div>`;
+        // Extra metrics
+        h+='<div class="qn-extra">';
+        h+=`<div class="qe ${swapLvl==='ok'?'':'bad'}">Swap: ${s.swap_pct}%</div>`;
+        if(n.rrd){
+            h+=`<div class="qe ${loadLvl==='ok'?'':loadLvl==='warn'?'':'bad'}">Load: ${n.rrd.loadavg}/${s.cpu_cores}</div>`;
+            h+=`<div class="qe ${ioLvl==='ok'?'':ioLvl==='warn'?'':'bad'}">I/O: ${n.rrd.iowait}%</div>`;
+            h+=`<div class="qe">Net: \u2B07${esc(n.rrd.netin)} \u2B06${esc(n.rrd.netout)}</div>`;
+        }
+        h+=`<div class="qe">Uptime: ${esc(s.uptime)}</div>`;
+        const failSvc=n.services.filter(x=>x.state!=='running'&&x.critical);
+        if(failSvc.length) h+=`<div class="qe bad">${failSvc.length} svc down</div>`;
+        h+='</div></div>';
+    }
+    h+='</div>';
+
+    // All VMs/CTs across cluster with alerts
+    const allVMs=[], allCTs=[];
+    for(const n of nodes){
+        for(const v of n.vms) allVMs.push({...v, node:n.name, _node:n.name});
+        for(const c of n.containers) allCTs.push({...c, node:n.name, _node:n.name});
+    }
+    if(allVMs.length||allCTs.length){
+        h+='<div class="quick-vms"><div class="sec-h"><span class="sec-t">VMs et Containers du cluster</span></div><div class="sec">';
+        const all=[...allVMs.map(v=>({...v,type:'VM'})),...allCTs.map(c=>({...c,type:'CT'}))].sort((a,b)=>a.vmid-b.vmid);
+        h+='<table><thead><tr><th>Type</th><th>ID</th><th>Nom</th><th>Noeud</th><th>Status</th><th>CPU</th><th>RAM</th><th>Disque</th><th>Agent</th><th>Etat</th></tr></thead><tbody>';
+        for(const v of all){
+            const run=v.status==='running';
+            const cpuAlert=run&&v.cpu>=90;const memAlert=run&&v.mem_pct>=90;
+            const rowCls=cpuAlert||memAlert?'style="background:var(--red-bg)"':'';
+            // Agent column
+            let agentCol='-';
+            if(v.agent_status!==undefined){
+                if(v.agent_running) agentCol='<span class="cg" style="font-size:.65rem">\u2705 OK'+(v.guest_agent?.os?' ('+esc(v.guest_agent.os)+')':'')+'</span>';
+                else if(v.agent_enabled) agentCol=`<span class="cy" style="font-size:.65rem;cursor:pointer" onclick="openInstallAgent('${v.vmid}','${esc(v.name)}','${esc(v.node)}','')">\u26A0 Config \u{1F517}</span>`;
+                else agentCol=`<span class="cr" style="font-size:.65rem;cursor:pointer" onclick="openInstallAgent('${v.vmid}','${esc(v.name)}','${esc(v.node)}','')">\u274C \u{1F4E5} Installer</span>`;
+            }
+            h+=`<tr ${rowCls}><td>${v.type}</td><td>${v.vmid}</td><td><b>${esc(v.name)}</b></td><td>${esc(v.node)}</td><td>${badge(v.status)}</td>
+            <td>${run?`<span class="${v.cpu<70?'cg':v.cpu<90?'cy':'cr'}">${v.cpu}%</span>`:'-'}</td>
+            <td>${run?`<span class="${v.mem_pct<80?'cg':v.mem_pct<90?'cy':'cr'}">${v.mem_pct}%</span> <span style="font-size:.6rem;color:var(--text3)">${esc(v.mem)}/${esc(v.maxmem)}</span>`:'-'}</td>
+            <td style="font-size:.65rem">${esc(v.disk)}</td>
+            <td>${agentCol}</td>
+            <td>${run?(cpuAlert?'<span class="cr" style="font-weight:600">CPU!</span> ':'')+(memAlert?'<span class="cr" style="font-weight:600">RAM!</span>':'')+((!cpuAlert&&!memAlert)?'<span class="cg">OK</span>':''):'<span style="color:var(--text3)">-</span>'}</td></tr>`;
+        }
+        h+='</tbody></table></div></div>';
+    }
+
+    // Correlations
+    const corrs=[];
+    for(const n of nodes){
+        if(!n.online||!n.stats)continue;
+        const s=n.stats;
+        // Host OK + VM slow = internal VM problem
+        if(s.cpu_usage<50){
+            for(const v of n.vms){if(v.status==='running'&&v.cpu>90)corrs.push({icon:'\u{1F4BB}',title:`${v.name} (VM ${v.vmid}): CPU 100% mais hote ${n.name} OK`,detail:'Probable probleme applicatif interne a la VM, pas un probleme hote.'});}
+        }
+        // High IO + slow VMs = storage bottleneck
+        if(n.rrd&&n.rrd.iowait>10){
+            corrs.push({icon:'\u{1F4BE}',title:`${n.name}: IO Wait eleve (${n.rrd.iowait}%) - Stockage sature`,detail:'Les VMs sur ce noeud peuvent etre ralenties. Verifier le stockage, envisager SSD/NVMe.'});
+        }
+        // Swap > 0 = memory pressure
+        if(s.swap_used_bytes>0){
+            corrs.push({icon:'\u{1F4A7}',title:`${n.name}: Swap actif (${s.swap_pct}%) - Manque de RAM`,detail:'Les performances sont degradees. Ajouter de la RAM ou migrer des VMs.'});
+        }
+        // CPU oversubscription
+        let totalVcpu=0;
+        for(const v of n.vms){if(v.status==='running')totalVcpu+=v.maxcpu||0;}
+        for(const c of n.containers){if(c.status==='running')totalVcpu+=c.maxcpu||0;}
+        if(totalVcpu>s.cpu_cores*2){
+            corrs.push({icon:'\u{26A0}',title:`${n.name}: Oversubscription CPU (${totalVcpu} vCPU / ${s.cpu_cores} cores physiques)`,detail:`Ratio ${(totalVcpu/s.cpu_cores).toFixed(1)}:1. Acceptable si charge faible, critique si CPU hote > 80%.`});
+        }
+        // High load + high CPU = real saturation
+        if(n.rrd&&n.rrd.loadavg>s.cpu_cores&&s.cpu_usage>85){
+            corrs.push({icon:'\u{1F525}',title:`${n.name}: Saturation confirmee (CPU ${s.cpu_usage}% + Load ${n.rrd.loadavg})`,detail:'Le noeud est surcharge. Migrer des VMs ou ajouter des ressources.'});
+        }
+    }
+    if(corrs.length){
+        h+='<div class="quick-corr"><div class="sec-h"><span class="sec-t">Analyse de correlations</span></div>';
+        for(const c of corrs) h+=`<div class="corr-card"><div class="corr-icon">${c.icon}</div><div><div class="corr-title">${esc(c.title)}</div><div class="corr-detail">${esc(c.detail)}</div></div></div>`;
+        h+='</div>';
+    }
+
+    h+='</div>';
+    document.getElementById('quickContent').innerHTML=h;
+}
+
+// === ALERTS ===
+function computeAlerts(data){
+    const a=[],cl=data.cluster;
+    if(!cl.quorate)a.push({level:'err',msg:'QUORUM PERDU'});
+    if(cl.ha&&cl.ha.status&&cl.ha.status!=='OK')a.push({level:'warn',msg:`HA: ${cl.ha.status}`});
+    const off=data.nodes.filter(n=>!n.online);
+    if(off.length)a.push({level:'err',msg:`${off.length} noeud(s) hors ligne: ${off.map(n=>n.name).join(', ')}`});
+    for(const n of data.nodes){
+        if(!n.online||!n.stats)continue;
+        if(n.stats.cpu_usage>90)a.push({level:'warn',msg:`${n.name}: CPU ${n.stats.cpu_usage}%`});
+        if(n.stats.memory_pct>90)a.push({level:'warn',msg:`${n.name}: RAM ${n.stats.memory_pct}%`});
+        if(n.stats.disk_pct>90)a.push({level:'err',msg:`${n.name}: Disque ${n.stats.disk_pct}%`});
+        if(n.stats.swap_pct>50)a.push({level:'warn',msg:`${n.name}: Swap ${n.stats.swap_pct}%`});
+        const f=n.services.filter(s=>s.state!=='running'&&s.critical);
+        if(f.length)a.push({level:'err',msg:`${n.name}: ${f.length} service(s) down`});
+        for(const d of n.disks){if(d.health!=='OK'&&d.health!=='PASSED'&&d.health!=='N/A')a.push({level:'err',msg:`${n.name}: ${d.devpath} SMART:${d.health}`});}
+        for(const s of n.storage){if(s.pct>90)a.push({level:'warn',msg:`${n.name}: ${s.storage} ${s.pct}%`});}
+        if(n.rrd){
+            if(n.rrd.psi_cpu_some>10)a.push({level:'warn',msg:`${n.name}: Contention CPU ${n.rrd.psi_cpu_some}%`});
+            if(n.rrd.psi_memory_full>5)a.push({level:'warn',msg:`${n.name}: Pression mem ${n.rrd.psi_memory_full}%`});
+            if(n.rrd.psi_io_full>5)a.push({level:'warn',msg:`${n.name}: Congestion I/O ${n.rrd.psi_io_full}%`});
+        }
+    }return a;}
+
+// === MAIN FETCH ===
+async function fetchStatus(){
+    const btn=document.getElementById('btnR');btn.disabled=true;btn.style.opacity='.6';
+    try{
+        const resp=await fetch('/api/status');
+        if(!resp.ok){document.getElementById('mainGrid').innerHTML='<div class="loading" style="color:var(--red)">Erreur de connexion</div>';return;}
+        const data=await resp.json();
+        if(data.error){document.getElementById('mainGrid').innerHTML=`<div class="loading" style="color:var(--red)">${esc(data.error)}</div>`;return;}
+        lastData=data;
+        const cl=data.cluster,alerts=computeAlerts(data);
+        const bar=document.getElementById('alertBar');
+        const hasErr=alerts.some(a=>a.level==='err'),hasWarn=alerts.some(a=>a.level==='warn');
+        bar.className=`alert ${hasErr?'err':hasWarn?'warn':'ok'}`;
+        let leds=`<div class="led ${hasErr?'led-r':hasWarn?'led-y':'led-g'}"></div>`;
+        for(const n of data.nodes){const na=alerts.filter(a=>a.msg.startsWith(n.name+':'));let c='led-g';if(!n.online||na.some(a=>a.level==='err'))c='led-r';else if(na.some(a=>a.level==='warn'))c='led-y';leds+=`<div class="led ${c}" title="${esc(n.name)}"></div>`;}
+        document.getElementById('alertLeds').innerHTML=leds;
+        if(!alerts.length){document.getElementById('alertMsg').innerHTML=`<b>Tout est OK</b> - Cluster operationnel`;document.getElementById('alertDet').innerHTML='';}
+        else{document.getElementById('alertMsg').innerHTML=`<b>${alerts.length} alerte(s)</b>`;document.getElementById('alertDet').innerHTML=alerts.map(a=>`<div class="alert-item"><div class="dot ${a.level==='err'?'dot-r':'dot-y'}"></div>${esc(a.msg)}</div>`).join('');}
+        document.getElementById('cBanner').style.display='grid';document.getElementById('cName').textContent=cl.name;document.getElementById('cMeta').textContent=`API: ${data.api_host}`;
+        const on=data.nodes.filter(n=>n.online).length,tot=data.nodes.length;
+        const tvr=data.nodes.reduce((a,n)=>a+n.vms.filter(v=>v.status==='running').length,0),tv=data.nodes.reduce((a,n)=>a+n.vms.length,0);
+        const tcr=data.nodes.reduce((a,n)=>a+n.containers.filter(c=>c.status==='running').length,0),tc=data.nodes.reduce((a,n)=>a+n.containers.length,0);
+        document.getElementById('cStats').innerHTML=`<div class="c-stat"><div class="n">${on}/${tot}</div><div class="l">Noeuds</div></div><div class="c-stat"><div class="n">${tvr}${tv?'/'+tv:''}</div><div class="l">VMs</div></div><div class="c-stat"><div class="n">${tcr}${tc?'/'+tc:''}</div><div class="l">Containers</div></div>`;
+        document.getElementById('infoRow').innerHTML=`<div class="info-pill"><div class="dot ${cl.quorate?'dot-g':'dot-r'}"></div>Quorum: ${cl.quorate?'OK':'PERDU'}</div><div class="info-pill"><div class="dot ${cl.ha&&cl.ha.status==='OK'?'dot-g':'dot-y'}"></div>HA: ${cl.ha?cl.ha.status:'N/A'}</div><div class="info-pill">Version: ${cl.version||'N/A'}</div>${cl.nodes_info.map(n=>`<div class="info-pill"><div class="dot ${n.online?'dot-g':'dot-r'}"></div>${esc(n.name)} (${esc(n.ip)})</div>`).join('')}`;
+        document.getElementById('hStats').innerHTML=`<div class="h-chip"><b>${on}/${tot}</b> noeuds</div><div class="h-chip"><b>${tvr}</b> VMs</div><div class="h-chip"><b>${tcr}</b> CTs</div>`;
+        document.getElementById('mainGrid').innerHTML=data.nodes.map(renderNode).join('');
+        if(cl.recent_tasks&&cl.recent_tasks.length){document.getElementById('tasksPanel').style.display='block';document.getElementById('tasksList').innerHTML=renderTasks(cl.recent_tasks);}
+        renderQuick(data);
+        if(document.getElementById('tab-advanced').classList.contains('active'))renderAdvanced(data);
+        if(document.getElementById('tab-audit').classList.contains('active'))loadAudit();
+        document.getElementById('refTime').textContent='MAJ: '+new Date().toLocaleString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit',day:'2-digit',month:'2-digit'});
+    }catch(e){
+        document.getElementById('alertBar').className='alert err';document.getElementById('alertLeds').innerHTML='<div class="led led-r"></div>';
+        document.getElementById('alertMsg').innerHTML='<b>Erreur de connexion</b>';document.getElementById('alertDet').innerHTML='';
+    }finally{btn.disabled=false;btn.style.opacity='1';}}
+
+// === AGENT INSTALL MODAL ===
+function showModal(html){
+    const m=document.getElementById('agentModal');
+    m.style.display='flex';
+    document.getElementById('agentModalContent').innerHTML=html;
+}
+function hideModal(){document.getElementById('agentModal').style.display='none';}
+document.getElementById('agentModal').addEventListener('click',e=>{if(e.target.id==='agentModal')hideModal();});
+
+function openInstallAgent(vmid,vmName,node,ip){
+    if(!ip||ip==='N/A'){
+        // Try to find IP from network
+        showModal(`<h3>Installer QEMU Guest Agent</h3>
+            <p>VM: <b>${esc(vmName)}</b> (${vmid}) sur ${esc(node)}</p>
+            <p style="color:var(--red)">Impossible de detecter l'IP de la VM (l'agent n'est pas installe).</p>
+            <label>Adresse IP de la VM</label>
+            <input type="text" id="agentIp" placeholder="192.168.x.x">
+            <label>Utilisateur SSH</label>
+            <input type="text" id="agentUser" value="root">
+            <label>Mot de passe SSH</label>
+            <input type="password" id="agentPass" placeholder="Mot de passe">
+            <div class="btn-row">
+                <button class="btn-cancel" onclick="hideModal()">Annuler</button>
+                <button class="btn" onclick="doInstallAgent('${vmid}','${esc(node)}')">Installer</button>
+                <button class="btn-cancel" onclick="showManualInstall('${esc(vmName)}')">Procedure manuelle</button>
+            </div>`);
+    } else {
+        showModal(`<h3>Installer QEMU Guest Agent</h3>
+            <p>VM: <b>${esc(vmName)}</b> (${vmid}) sur ${esc(node)}</p>
+            <label>Adresse IP de la VM</label>
+            <input type="text" id="agentIp" value="${esc(ip)}">
+            <label>Utilisateur SSH</label>
+            <input type="text" id="agentUser" value="root">
+            <label>Mot de passe SSH</label>
+            <input type="password" id="agentPass" placeholder="Mot de passe" autofocus>
+            <div class="btn-row">
+                <button class="btn-cancel" onclick="hideModal()">Annuler</button>
+                <button class="btn" onclick="doInstallAgent('${vmid}','${esc(node)}')">Installer via SSH</button>
+                <button class="btn-cancel" onclick="showManualInstall('${esc(vmName)}')">Procedure manuelle</button>
+            </div>`);
+    }
+}
+
+async function doInstallAgent(vmid,node){
+    const ip=document.getElementById('agentIp').value.trim();
+    const user=document.getElementById('agentUser').value.trim();
+    const pass=document.getElementById('agentPass').value;
+    if(!ip||!pass){alert('IP et mot de passe requis');return;}
+
+    showModal(`<h3>Installation en cours...</h3>
+        <p>Connexion SSH a ${esc(user)}@${esc(ip)}...</p>
+        <div class="modal-log" id="installLog"><span class="warn">Connexion en cours...</span></div>`);
+
+    try{
+        const resp=await fetch('/api/install-agent',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ip,username:user,password:pass,node,vmid})});
+        const data=await resp.json();
+        const logEl=document.getElementById('installLog');
+
+        let logHtml='';
+        for(const l of data.log||[]){
+            const cls=l.toLowerCase().includes('erreur')||l.toLowerCase().includes('echec')?'err':l.toLowerCase().includes('reussi')?'ok':'';
+            logHtml+=`<div class="${cls}">${esc(l)}</div>`;
+        }
+
+        if(data.success){
+            showModal(`<h3 style="color:var(--green)">Installation reussie !</h3>
+                <p>${esc(data.message)}</p>
+                <div class="modal-log">${logHtml}</div>
+                <p style="margin-top:10px;font-size:.72rem;color:var(--text2)">L'agent devrait apparaitre comme connecte au prochain rafraichissement.</p>
+                <div class="btn-row"><button class="btn" onclick="hideModal();fetchStatus();">Fermer et rafraichir</button></div>`);
+        } else {
+            showModal(`<h3 style="color:var(--red)">Installation echouee</h3>
+                <p style="color:var(--red)">${esc(data.error)}</p>
+                ${data.detail?`<p style="font-size:.68rem;color:var(--text3)">${esc(data.detail).substring(0,300)}</p>`:''}
+                <div class="modal-log">${logHtml}</div>
+                <div class="modal-manual">
+                    <b>Procedure manuelle :</b>
+                    <pre># Debian / Ubuntu
+apt-get update && apt-get install -y qemu-guest-agent
+systemctl enable --now qemu-guest-agent
+
+# CentOS / Rocky / AlmaLinux
+yum install -y qemu-guest-agent
+systemctl enable --now qemu-guest-agent
+
+# Alpine
+apk add qemu-guest-agent
+rc-update add qemu-guest-agent default
+rc-service qemu-guest-agent start</pre>
+                    <p style="margin-top:8px">Puis dans Proxmox: VM > Options > QEMU Guest Agent > Cocher Enable</p>
+                </div>
+                <div class="btn-row">
+                    <button class="btn-cancel" onclick="hideModal()">Fermer</button>
+                    <button class="btn" onclick="openInstallAgent('${vmid}','','${node}','${ip}')">Reessayer</button>
+                </div>`);
+        }
+    }catch(e){
+        showModal(`<h3 style="color:var(--red)">Erreur</h3><p>${esc(e.message)}</p>
+            <div class="btn-row"><button class="btn-cancel" onclick="hideModal()">Fermer</button></div>`);
+    }
+}
+
+function showManualInstall(vmName){
+    showModal(`<h3>Installation manuelle - ${esc(vmName)}</h3>
+        <p>Connectez-vous a la VM par console ou SSH puis executez les commandes correspondant a votre distribution :</p>
+        <div class="modal-manual">
+            <b>Debian / Ubuntu / Mint :</b>
+            <pre>sudo apt-get update
+sudo apt-get install -y qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent</pre>
+
+            <b>CentOS / RHEL / Rocky / AlmaLinux :</b>
+            <pre>sudo yum install -y qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent</pre>
+
+            <b>Fedora :</b>
+            <pre>sudo dnf install -y qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent</pre>
+
+            <b>openSUSE / SLES :</b>
+            <pre>sudo zypper install -y qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent</pre>
+
+            <b>Arch Linux :</b>
+            <pre>sudo pacman -S qemu-guest-agent
+sudo systemctl enable --now qemu-guest-agent</pre>
+
+            <b>Alpine Linux :</b>
+            <pre>apk add qemu-guest-agent
+rc-update add qemu-guest-agent default
+rc-service qemu-guest-agent start</pre>
+
+            <b>Windows :</b>
+            <p>Telecharger les VirtIO drivers depuis <code>https://fedorapeople.org/groups/virt/virtio-win/</code>, installer le MSI, puis activer le service "QEMU Guest Agent" dans services.msc</p>
+        </div>
+        <p style="margin-top:10px;font-size:.72rem"><b>Ensuite dans Proxmox :</b> VM > Options > QEMU Guest Agent > Cocher "Use QEMU Guest Agent"</p>
+        <div class="btn-row"><button class="btn" onclick="hideModal()">Fermer</button></div>`);
+}
+
+fetchStatus();setInterval(fetchStatus,RI);
+</script>
+</body>
+</html>

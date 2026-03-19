@@ -160,6 +160,56 @@
         .corr-card{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
         .corr-icon{font-size:18px;flex-shrink:0;}.corr-title{font-size:.76rem;font-weight:600;}.corr-detail{font-size:.66rem;color:var(--text2);margin-top:2px;}
 
+        /* ARCHITECTURE TAB */
+        .archi-wrap{padding:20px 24px;min-height:500px;}
+        .archi-cluster{position:relative;background:linear-gradient(180deg,#f8fafc 0%,#eff6ff 100%);border:2px solid var(--accent);border-radius:16px;padding:20px;min-height:400px;}
+        .archi-cluster-title{position:absolute;top:-14px;left:24px;background:var(--accent);color:#fff;padding:4px 16px;border-radius:8px;font-size:.78rem;font-weight:700;letter-spacing:.5px;}
+        .archi-quorum{position:absolute;top:-14px;right:24px;padding:4px 12px;border-radius:8px;font-size:.68rem;font-weight:600;}
+        .archi-quorum.ok{background:#dcfce7;color:var(--green);border:1px solid var(--green-b);}
+        .archi-quorum.bad{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}
+
+        .archi-network{text-align:center;margin:10px 0 20px;padding:8px;background:linear-gradient(90deg,transparent,rgba(37,99,235,.08),transparent);border-radius:8px;}
+        .archi-net-label{font-size:.65rem;color:var(--accent);font-weight:600;letter-spacing:1px;text-transform:uppercase;}
+        .archi-net-line{height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);margin:6px 0;border-radius:1px;}
+
+        .archi-nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:16px;}
+        .archi-node{background:#fff;border-radius:12px;border:2px solid;padding:0;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:transform .2s,box-shadow .2s;}
+        .archi-node:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.1);}
+        .archi-node.online{border-color:var(--green);}
+        .archi-node.offline{border-color:var(--red);opacity:.7;}
+
+        .archi-node-header{padding:12px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);}
+        .archi-node-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+        .archi-node.online .archi-node-icon{background:linear-gradient(135deg,#dcfce7,#bbf7d0);}
+        .archi-node.offline .archi-node-icon{background:var(--red-bg);}
+        .archi-node-name{font-size:.88rem;font-weight:700;}.archi-node-ip{font-size:.65rem;color:var(--text3);font-family:monospace;}
+        .archi-node-status{margin-left:auto;}.archi-node-led{width:10px;height:10px;border-radius:50%;box-shadow:0 0 6px currentColor;}
+        .archi-node-led.on{background:var(--green);color:rgba(34,197,94,.4);}.archi-node-led.off{background:var(--red);color:rgba(239,68,68,.4);}
+
+        .archi-node-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;padding:0;border-bottom:1px solid var(--border);}
+        .archi-stat{text-align:center;padding:8px 4px;border-right:1px solid var(--border);}
+        .archi-stat:last-child{border-right:none;}
+        .archi-stat-val{font-size:.9rem;font-weight:700;}.archi-stat-lbl{font-size:.52rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;}
+
+        .archi-vms{padding:10px 12px;}
+        .archi-vm{display:flex;align-items:center;gap:8px;padding:5px 8px;margin-bottom:4px;border-radius:6px;font-size:.7rem;border:1px solid var(--border);background:var(--bg);transition:background .15s;}
+        .archi-vm:hover{background:#fff;}
+        .archi-vm-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+        .archi-vm-icon.qemu{background:linear-gradient(135deg,#dbeafe,#bfdbfe);}.archi-vm-icon.lxc{background:linear-gradient(135deg,#fef3c7,#fde68a);}
+        .archi-vm-name{font-weight:600;flex:1;}.archi-vm-id{color:var(--text3);font-size:.6rem;}
+        .archi-vm-status{width:7px;height:7px;border-radius:50;}.archi-vm-status.run{background:var(--green);}.archi-vm-status.stop{background:var(--text3);}
+        .archi-vm-agent{font-size:.55rem;padding:1px 4px;border-radius:3px;}
+        .archi-vm-agent.ok{background:#dcfce7;color:var(--green);}.archi-vm-agent.no{background:var(--red-bg);color:var(--red);}
+
+        .archi-storage-section{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+        .archi-storage{display:flex;align-items:center;gap:6px;padding:3px 8px;margin-bottom:3px;font-size:.65rem;border-radius:4px;background:var(--bg);}
+        .archi-sto-icon{font-size:12px;}.archi-sto-name{font-weight:600;}.archi-sto-bar{flex:1;max-width:60px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;}
+        .archi-sto-fill{height:100%;border-radius:2px;}.archi-sto-pct{font-size:.6rem;color:var(--text3);min-width:28px;text-align:right;}
+
+        .archi-legend{display:flex;gap:16px;justify-content:center;margin-top:16px;font-size:.65rem;color:var(--text3);flex-wrap:wrap;}
+        .archi-legend-item{display:flex;align-items:center;gap:4px;}
+        .archi-legend-dot{width:12px;height:12px;border-radius:3px;border:1px solid var(--border);}
+
         /* OPTIM TAB */
         .optim-wrap{padding:14px 24px;}
         .optim-summary{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
@@ -231,6 +281,26 @@
         .sto-tag.thin{background:#dbeafe;color:#1d4ed8;}.sto-tag.thick{background:#e2e8f0;color:var(--text3);}
         .sto-tag.overcommit{background:var(--red-bg);color:var(--red);}
 
+        /* DIAGNOSTICS */
+        .diag-wrap{padding:14px 24px;}
+        .diag-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+        .diag-count{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;font-size:.82rem;font-weight:700;}
+        .diag-count.dc-crit{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}
+        .diag-count.dc-warn{background:var(--yellow-bg);color:var(--yellow);border:1px solid #fde68a;}
+        .diag-count.dc-info{background:#eff6ff;color:var(--accent);border:1px solid #bfdbfe;}
+        .diag-count.dc-ok{background:#dcfce7;color:var(--green);border:1px solid var(--green-b);}
+        .diag-node{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;margin-bottom:14px;}
+        .diag-node-h{padding:12px 16px;background:var(--hover);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+        .diag-issue{display:grid;grid-template-columns:8px 1fr;gap:12px;padding:10px 16px;border-bottom:1px solid rgba(0,0,0,.04);}
+        .diag-issue:hover{background:var(--hover);}
+        .diag-bar{border-radius:4px;width:8px;}.diag-bar.dc{background:var(--red);}.diag-bar.dw{background:var(--yellow);}.diag-bar.di{background:var(--accent);}
+        .diag-title{font-size:.78rem;font-weight:600;margin-bottom:3px;}
+        .diag-cat{font-size:.6rem;padding:1px 6px;border-radius:4px;background:var(--bg);color:var(--text3);display:inline-block;margin-bottom:4px;}
+        .diag-solution{font-size:.7rem;color:var(--green);background:#f0fdf4;padding:6px 10px;border-radius:6px;border:1px solid #bbf7d0;margin-top:4px;}
+        .diag-solution b{color:#166534;}
+        .diag-sample{font-size:.62rem;color:var(--text3);font-family:monospace;background:var(--bg);padding:4px 8px;border-radius:4px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .diag-raw{margin-top:8px;}
+
         /* MODAL */
         .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;}
         .modal{background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-width:540px;width:92%;max-height:90vh;overflow-y:auto;padding:24px;}
@@ -260,6 +330,7 @@
     <div class="h-right">
         <div id="hStats" style="display:flex;gap:6px;"></div>
         <button class="btn" onclick="fetchStatus()" id="btnR"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Rafraichir</button>
+        <button class="btn" onclick="showAbout()" style="background:var(--accent2);" title="A propos">?</button>
         <div class="ref-time" id="refTime">--:--:--</div>
     </div>
 </header>
@@ -270,8 +341,11 @@
     <div class="tab" data-tab="main">Vue principale</div>
     <div class="tab" data-tab="storage">Stockage</div>
     <div class="tab" data-tab="perf">Performances</div>
+    <div class="tab" data-tab="bench">Benchmarks</div>
     <div class="tab" data-tab="optim">Optimisations</div>
+    <div class="tab" data-tab="archi">Architecture</div>
     <div class="tab" data-tab="logs">Journaux</div>
+    <div class="tab" data-tab="diag">Diagnostics</div>
     <div class="tab" data-tab="reco">Recommandations</div>
     <div class="tab" data-tab="audit">Audit</div>
 </div>
@@ -288,7 +362,10 @@
 <div id="tab-storage" class="tab-content"><div id="storageContent"><div class="loading"><div class="spinner"></div>Chargement...</div></div></div>
 <div id="tab-perf" class="tab-content"><div id="perfContent"><div class="loading"><div class="spinner"></div>Chargement...</div></div></div>
 <div id="tab-optim" class="tab-content"><div id="optimContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
+<div id="tab-bench" class="tab-content"><div id="benchContent"><div class="loading">Selectionnez un noeud et lancez un benchmark...</div></div></div>
+<div id="tab-archi" class="tab-content"><div id="archiContent"><div class="loading">Chargement...</div></div></div>
 <div id="tab-logs" class="tab-content"><div id="logsContent"><div class="loading"><div class="spinner"></div>Chargement des journaux...</div></div></div>
+<div id="tab-diag" class="tab-content"><div id="diagContent"><div class="loading"><div class="spinner"></div>Analyse en cours...</div></div></div>
 <div id="tab-reco" class="tab-content"><div id="recoContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
 <div id="tab-audit" class="tab-content"><div id="auditContent"><div class="loading"><div class="spinner"></div>Audit en cours...</div></div></div>
 
@@ -313,7 +390,10 @@ document.querySelectorAll('.tab').forEach(t=>{
         document.querySelectorAll('.tab-content').forEach(x=>x.classList.toggle('active',x.id==='tab-'+name));
         if(name==='storage'&&!storageLoaded)loadStorage();
         if(name==='perf')loadPerf();
+        if(name==='bench'&&lastData)renderBenchTab();
+        if(name==='archi')loadArchi();
         if(name==='optim'&&!optimLoaded)loadOptim();
+        if(name==='diag')loadDiag();
         if(name==='logs'&&!logsLoaded)loadLogs();
         if(name==='reco'&&!recoLoaded)loadReco();
         if(name==='audit')loadAudit();
@@ -819,6 +899,202 @@ async function fetchStatus(){
         document.getElementById('alertMsg').innerHTML='<b>Erreur de connexion</b>';document.getElementById('alertDet').innerHTML='';
     }finally{btn.disabled=false;btn.style.opacity='1';}}
 
+// === ARCHITECTURE TAB ===
+let archiData=null;
+async function loadArchi(){
+    const el=document.getElementById('archiContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Chargement de l\'architecture...</div>';
+    try{
+        const [r1,r2]=await Promise.all([fetch('/api/status'),fetch('/api/architecture')]);
+        const status=await r1.json();const archi=await r2.json();
+        archiData=archi;
+        renderArchi(status,archi);
+    }catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}
+}
+
+function renderArchi(data,archi){
+    const el=document.getElementById('archiContent');
+    const cl=data.cluster,nodes=data.nodes;
+    const coro=archi.corosync||{};
+    const nodesD=archi.nodes_detail||[];
+    const repl=archi.replication||[];
+
+    let h=`<div class="archi-wrap">`;
+
+    // Cluster box
+    h+=`<div class="archi-cluster">`;
+    h+=`<div class="archi-cluster-title">\u{1F310} ${esc(coro.cluster_name||cl.name)}</div>`;
+    h+=`<div class="archi-quorum ${cl.quorate?'ok':'bad'}">${cl.quorate?'\u2705 Quorum OK':'\u274C Quorum PERDU'}</div>`;
+
+    // Corosync info bar
+    h+=`<div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">`;
+    const transport=nodesD.find(n=>n.transport)?.transport||'knet';
+    h+=`<div class="info-pill"><div class="dot dot-g"></div>Transport: <b>${esc(transport)}</b></div>`;
+    h+=`<div class="info-pill">SecAuth: <b style="color:${coro.secauth==='on'?'var(--green)':'var(--red)'}">${esc(coro.secauth||'off')}</b></div>`;
+    h+=`<div class="info-pill">Link mode: <b>${esc(coro.link_mode||'N/A')}</b></div>`;
+    h+=`<div class="info-pill">IP: <b>${esc(coro.ip_version||'N/A')}</b></div>`;
+    h+=`<div class="info-pill">Config v${esc(coro.config_version||'?')}</div>`;
+    h+=`<div class="info-pill">QDevice: <b style="color:${coro.qdevice?'var(--green)':'var(--text3)}'}">${coro.qdevice?'Actif':'Non'}</b></div>`;
+    h+=`</div>`;
+
+    // Network backbone with animation
+    h+=`<div class="archi-network" style="margin-top:14px">`;
+    h+=`<div class="archi-net-label">\u{1F50C} Reseau Cluster - Corosync / Kronosnet</div>`;
+    h+=`<div style="position:relative;height:20px;margin:8px 0">`;
+    h+=`<div style="position:absolute;top:9px;left:5%;right:5%;height:2px;background:linear-gradient(90deg,var(--green),var(--accent),var(--green));border-radius:1px;"></div>`;
+    // Animated packets
+    h+=`<div style="position:absolute;top:6px;left:5%;width:8px;height:8px;border-radius:50%;background:var(--accent);animation:packet 2s linear infinite;opacity:.6;"></div>`;
+    h+=`<div style="position:absolute;top:6px;right:5%;width:8px;height:8px;border-radius:50%;background:var(--green);animation:packet-r 2s linear infinite;opacity:.6;"></div>`;
+    h+=`</div>`;
+    h+=`<style>@keyframes packet{0%{left:5%}100%{left:90%}}@keyframes packet-r{0%{right:5%}100%{right:90%}}</style>`;
+    h+=`</div>`;
+
+    // Nodes
+    h+=`<div class="archi-nodes">`;
+    for(const n of nodes){
+        const isOn=n.online;
+        const nd=nodesD.find(d=>d.name===n.name)||{};
+        h+=`<div class="archi-node ${isOn?'online':'offline'}">`;
+
+        // Header
+        h+=`<div class="archi-node-header">`;
+        h+=`<div class="archi-node-icon">${isOn?'\u{1F5A5}':'\u{1F6AB}'}</div>`;
+        h+=`<div><div class="archi-node-name">${esc(n.name)}</div><div class="archi-node-ip">${esc(n.ip)}</div></div>`;
+        h+=`<div class="archi-node-status"><div class="archi-node-led ${isOn?'on':'off'}" style="animation:${isOn?'':'blink 1s infinite'}"></div></div>`;
+        h+=`</div>`;
+
+        if(isOn&&n.stats){
+            const s=n.stats;
+
+            // Corosync + network status
+            h+=`<div style="display:flex;gap:4px;padding:6px 12px;flex-wrap:wrap;border-bottom:1px solid var(--border);font-size:.6rem">`;
+            h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem"><div class="dot ${nd.corosync_ok?'dot-g':'dot-r'}"></div>Corosync ${nd.corosync_ok?'OK':'!'}</span>`;
+            h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem"><div class="dot ${nd.heartbeat_ok?'dot-g':'dot-r'}"></div>Heartbeat</span>`;
+            h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem;${nd.jumbo_frames?'background:#dcfce7;border-color:#86efac':''}">MTU: ${nd.mtu} ${nd.jumbo_frames?'\u2705':''}</span>`;
+            if(nd.transport) h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem">${esc(nd.transport)}</span>`;
+            h+=`</div>`;
+
+            // Stats bar
+            h+=`<div class="archi-node-stats">`;
+            h+=`<div class="archi-stat"><div class="archi-stat-val" style="color:${pc(s.cpu_usage)}">${s.cpu_usage}%</div><div class="archi-stat-lbl">CPU (${s.cpu_cores}c)</div></div>`;
+            h+=`<div class="archi-stat"><div class="archi-stat-val" style="color:${pc(s.memory_pct)}">${s.memory_pct}%</div><div class="archi-stat-lbl">RAM</div></div>`;
+            h+=`<div class="archi-stat"><div class="archi-stat-val" style="color:${pc(s.disk_pct)}">${s.disk_pct}%</div><div class="archi-stat-lbl">Disque</div></div>`;
+            h+=`</div>`;
+
+            // VMs
+            if(n.vms.length||n.containers.length){
+                h+=`<div class="archi-vms">`;
+                for(const v of n.vms.sort((a,b)=>a.vmid-b.vmid)){
+                    const run=v.status==='running';
+                    h+=`<div class="archi-vm">`;
+                    h+=`<div class="archi-vm-icon qemu">\u{1F4BB}</div>`;
+                    h+=`<div class="archi-vm-name">${esc(v.name)}</div>`;
+                    h+=`<div class="archi-vm-id">#${v.vmid}</div>`;
+                    if(v.agent_status!==undefined) h+=`<div class="archi-vm-agent ${v.agent_running?'ok':'no'}">${v.agent_running?'\u2705':'\u274C'}</div>`;
+                    h+=`<div style="width:7px;height:7px;border-radius:50%;background:${run?'var(--green)':'var(--text3)'}"></div>`;
+                    if(run) h+=`<span style="font-size:.55rem;color:var(--text3)">CPU ${v.cpu}% RAM ${v.mem_pct}%</span>`;
+                    h+=`</div>`;
+                }
+                for(const c of n.containers.sort((a,b)=>a.vmid-b.vmid)){
+                    const run=c.status==='running';
+                    h+=`<div class="archi-vm"><div class="archi-vm-icon lxc">\u{1F4E6}</div><div class="archi-vm-name">${esc(c.name)}</div><div class="archi-vm-id">#${c.vmid}</div><div style="width:7px;height:7px;border-radius:50%;background:${run?'var(--green)':'var(--text3)'}"></div>`;
+                    if(run) h+=`<span style="font-size:.55rem;color:var(--text3)">CPU ${c.cpu}% RAM ${c.mem_pct}%</span>`;
+                    h+=`</div>`;
+                }
+                h+=`</div>`;
+            } else {
+                h+=`<div class="archi-vms"><div style="text-align:center;padding:10px;color:var(--text3);font-size:.68rem;font-style:italic">Aucune VM / CT</div></div>`;
+            }
+
+            // Storage + ZFS
+            if(n.storage.length){
+                h+=`<div class="archi-storage-section" style="padding:6px 12px 10px">`;
+                for(const st of n.storage){
+                    const isZfs=st.plugintype==='zfspool'||st.plugintype==='lvmthin';
+                    h+=`<div class="archi-storage">`;
+                    h+=`<span class="archi-sto-icon">${isZfs?'\u{1F4A0}':'\u{1F4BE}'}</span>`;
+                    h+=`<span class="archi-sto-name">${esc(st.storage)}</span>`;
+                    h+=`<span style="color:var(--text3);font-size:.58rem">${esc(st.plugintype)}</span>`;
+                    h+=`<div class="archi-sto-bar"><div class="archi-sto-fill ${pcl(st.pct)}" style="width:${st.pct}%"></div></div>`;
+                    h+=`<span class="archi-sto-pct ${pcl(st.pct)}">${st.pct}%</span>`;
+                    h+=`</div>`;
+                }
+                // ZFS info
+                if(nd.zfs&&nd.zfs.loaded){
+                    h+=`<div style="padding:4px 8px;margin-top:4px;background:${nd.zfs.persistent_config?'#eff6ff':'#fef3c7'};border-radius:5px;font-size:.58rem;border:1px solid ${nd.zfs.persistent_config?'#bfdbfe':'#fde68a'}">`;
+                    h+=`ZFS ARC: ${esc(nd.zfs.arc_size)} / max ${esc(nd.zfs.arc_max_fmt)}`;
+                    if(nd.zfs.hit_ratio>0) h+=` | Hit: <b style="color:${nd.zfs.hit_ratio>=80?'var(--green)':'var(--red)}'}">${nd.zfs.hit_ratio}%</b>`;
+                    h+=` | Config: <b style="color:${nd.zfs.persistent_config?'var(--green)':'var(--red)}'}">${nd.zfs.persistent_config?'Persistant':'\u26A0 Non persistant!'}</b>`;
+                    if(nd.zfs.pools.length) h+=` | Pools: ${nd.zfs.pools.map(p=>`${p.name}(${p.health})`).join(', ')}`;
+                    h+=`</div>`;
+                }
+                h+=`</div>`;
+            }
+        } else if(!isOn){
+            h+=`<div style="padding:20px;text-align:center;color:var(--red);font-size:.8rem;font-weight:600">\u{1F6AB} HORS LIGNE</div>`;
+        }
+        h+=`</div>`;
+    }
+    h+=`</div>`;
+
+    // Connections SVG with animation
+    if(nodes.length>1){
+        h+=`<div style="text-align:center;margin:8px 0;position:relative">`;
+        h+=`<svg width="100%" height="36" style="overflow:visible">`;
+        const step=100/nodes.length;
+        for(let i=0;i<nodes.length;i++){
+            for(let j=i+1;j<nodes.length;j++){
+                const x1=step*i+step/2, x2=step*j+step/2;
+                const ok=nodes[i].online&&nodes[j].online;
+                const col=ok?'#16a34a':'#dc2626';
+                h+=`<line x1="${x1}%" y1="18" x2="${x2}%" y2="18" stroke="${col}" stroke-width="2" ${ok?'':'stroke-dasharray="4,4"'}/>`;
+                if(ok){
+                    h+=`<circle cx="0" cy="18" r="3" fill="${col}"><animateMotion dur="1.5s" repeatCount="indefinite" path="M ${x1*5} 0 L ${x2*5} 0"/></circle>`;
+                }
+                h+=`<circle cx="${x1}%" cy="18" r="5" fill="${nodes[i].online?'#16a34a':'#dc2626'}" stroke="#fff" stroke-width="2"/>`;
+                h+=`<circle cx="${x2}%" cy="18" r="5" fill="${nodes[j].online?'#16a34a':'#dc2626'}" stroke="#fff" stroke-width="2"/>`;
+            }
+        }
+        h+=`</svg>`;
+        h+=`<div style="font-size:.58rem;color:var(--text3)">Liaisons Corosync / Kronosnet / Migration live</div>`;
+        h+=`</div>`;
+    }
+
+    // Replication
+    if(repl.length){
+        h+=`<div style="margin-top:12px;padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px">`;
+        h+=`<div style="font-size:.72rem;font-weight:600;color:var(--accent);margin-bottom:6px">\u{1F504} Replication (${repl.length} jobs)</div>`;
+        for(const r of repl){
+            const health=r.error?'bad':'good';
+            h+=`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:.68rem;border-bottom:1px solid rgba(0,0,0,.05)">`;
+            h+=`<div class="dot ${health==='good'?'dot-g':'dot-r'}"></div>`;
+            h+=`<b>VM ${r.guest||r.vmid}</b> ${esc(r.source||'')} \u2192 ${esc(r.target||'')}`;
+            h+=`<span style="color:var(--text3)">Intervalle: ${r.schedule||'N/A'}</span>`;
+            if(r.error) h+=`<span style="color:var(--red)">${esc(r.error)}</span>`;
+            h+=`</div>`;
+        }
+        h+=`</div>`;
+    } else {
+        h+=`<div style="margin-top:8px;text-align:center;font-size:.65rem;color:var(--text3);font-style:italic">Aucune replication configuree</div>`;
+    }
+
+    h+=`</div>`; // cluster
+
+    // Legend
+    h+=`<div class="archi-legend">`;
+    h+=`<div class="archi-legend-item"><div class="archi-legend-dot" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe)"></div>VM QEMU</div>`;
+    h+=`<div class="archi-legend-item"><div class="archi-legend-dot" style="background:linear-gradient(135deg,#fef3c7,#fde68a)"></div>CT LXC</div>`;
+    h+=`<div class="archi-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:var(--green)"></div>En ligne</div>`;
+    h+=`<div class="archi-legend-item"><div style="width:8px;height:8px;border-radius:50%;background:var(--red)"></div>Hors ligne</div>`;
+    h+=`<div class="archi-legend-item"><span class="archi-vm-agent ok" style="font-size:.58rem">\u2705</span>Guest Agent</div>`;
+    h+=`<div class="archi-legend-item"><div style="width:20px;height:2px;background:var(--green);border-radius:1px"></div>Lien actif</div>`;
+    h+=`<div class="archi-legend-item"><div style="width:20px;height:2px;background:var(--red);border-radius:1px;border:1px dashed var(--red)"></div>Lien down</div>`;
+    h+=`</div>`;
+
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
 // === PERFORMANCE TAB ===
 async function loadPerf(){
     const el=document.getElementById('perfContent');
@@ -912,15 +1188,67 @@ function renderPerf(data){
 
         h+=`</div>`;
     }
-    h+='</div>';
-    // Add benchmark section
-    h+=renderBenchSection();
-    h+='</div>';
+    h+='</div></div>';
     el.innerHTML=h;
 }
 
 // === BENCHMARKS ===
 let benchResults=[];
+
+async function renderBenchTab(){
+    const el=document.getElementById('benchContent');
+    let h=renderBenchSection();
+    // Load history
+    try{
+        const r=await fetch('/api/benchmark/history');
+        const hist=await r.json();
+        if(Array.isArray(hist)&&hist.length){
+            h+=`<div style="padding:0 24px 14px"><div class="card"><div class="card-h"><div class="card-title"><div class="card-icon">\u{1F4C8}</div><div><div class="card-name">Historique des benchmarks</div><div class="card-ip">${hist.length} executions</div></div></div></div>`;
+            h+=`<div class="sec">`;
+
+            // Group by type for charts
+            const types={};
+            for(const b of hist){
+                if(!types[b.bench_type])types[b.bench_type]=[];
+                types[b.bench_type].push(b);
+            }
+
+            // Chart per type
+            let cid=0;
+            for(const[type,entries] of Object.entries(types)){
+                const labels={pveperf:'PVE Performance',cpu:'CPU Crypto',memory:'Memoire',disk_write:'Disque Ecriture',disk_read:'Disque Lecture',network:'Reseau'};
+                const recent=entries.slice(0,20).reverse();
+                const chartId='bhist_'+(cid++);
+                h+=`<div style="margin-bottom:14px"><div style="font-size:.75rem;font-weight:600;margin-bottom:6px">${labels[type]||type} (${entries.length} tests)</div>`;
+                h+=`<canvas id="${chartId}" style="width:100%;height:60px"></canvas>`;
+
+                // Table
+                h+=`<table style="margin-top:6px"><thead><tr><th>Date</th><th>Noeud</th><th>Resultats</th></tr></thead><tbody>`;
+                for(const b of entries.slice(0,5)){
+                    let results=[];try{results=JSON.parse(b.results||'[]');}catch(e){}
+                    const summary=results.map(r=>`${r.name}: ${r.value}`).join(' | ');
+                    h+=`<tr><td style="font-size:.62rem;color:var(--text3);white-space:nowrap">${esc(b.timestamp)}</td><td>${esc(b.node)}</td><td style="font-size:.62rem">${esc(summary).substring(0,120)}</td></tr>`;
+                }
+                h+=`</tbody></table></div>`;
+
+                // Draw sparkline for first numeric result
+                setTimeout(()=>{
+                    const vals=[];
+                    for(const b of recent){
+                        let results=[];try{results=JSON.parse(b.results||'[]');}catch(e){}
+                        for(const r of results){
+                            const num=parseFloat(r.value);
+                            if(!isNaN(num)){vals.push(num);break;}
+                        }
+                    }
+                    if(vals.length>1) drawSparkline(chartId,vals,'rgb(37,99,235)');
+                },200);
+            }
+            h+=`</div></div></div>`;
+        }
+    }catch(e){}
+    el.innerHTML=h;
+}
 
 function renderBenchSection(){
     if(!lastData)return'';
@@ -1222,6 +1550,82 @@ function renderStorageTab(data){
 function fmt_b(b){for(const u of['B','KB','MB','GB','TB']){if(b<1024)return b.toFixed(1)+' '+u;b/=1024;}return b.toFixed(1)+' PB';}
 function round(v,d){return Math.round(v*Math.pow(10,d))/Math.pow(10,d);}
 
+// === DIAGNOSTICS TAB ===
+async function loadDiag(){
+    const el=document.getElementById('diagContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Analyse des journaux systeme (SSH)...</div>';
+    try{const r=await fetch('/api/diagnostics',{timeout:60000});const data=await r.json();renderDiag(data);}
+    catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur: '+esc(e.message)+'</div>';}}
+
+function renderDiag(data){
+    const el=document.getElementById('diagContent');
+    const s=data.summary||{};
+    const totalIssues=(s.critical||0)+(s.warning||0)+(s.info||0);
+
+    let h='<div class="diag-wrap">';
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+        <span class="sec-t" style="font-size:.85rem">\u{1F50D} Diagnostics systeme</span>
+        <button class="btn" onclick="loadDiag()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Re-analyser</button></div>`;
+
+    // Summary
+    h+=`<div class="diag-summary">`;
+    if(totalIssues===0){
+        h+=`<div class="diag-count dc-ok">\u2705 Aucun probleme detecte</div>`;
+    } else {
+        if(s.critical) h+=`<div class="diag-count dc-crit">\u{1F534} ${s.critical} Critique(s)</div>`;
+        if(s.warning) h+=`<div class="diag-count dc-warn">\u{1F7E1} ${s.warning} Avertissement(s)</div>`;
+        if(s.info) h+=`<div class="diag-count dc-info">\u{1F535} ${s.info} Info(s)</div>`;
+    }
+    h+=`<span style="font-size:.7rem;color:var(--text3)">Analyse des dernieres 24h sur ${data.nodes?.length||0} noeuds</span>`;
+    h+=`</div>`;
+
+    // Per node
+    for(const nd of data.nodes||[]){
+        const nc=nd.issues.filter(i=>i.severity==='critical').length;
+        const nw=nd.issues.filter(i=>i.severity==='warning').length;
+        const ni=nd.issues.filter(i=>i.severity==='info').length;
+        const borderCol=nc?'var(--red)':nw?'var(--yellow)':'var(--green)';
+
+        h+=`<div class="diag-node" style="border-left:4px solid ${borderCol}">`;
+        h+=`<div class="diag-node-h"><div style="display:flex;align-items:center;gap:8px">`;
+        h+=`<div class="archi-node-led ${nc?'off':'on'}"></div>`;
+        h+=`<div><div style="font-size:.88rem;font-weight:600">${esc(nd.name)}</div><div style="font-size:.65rem;color:var(--text3)">${esc(nd.ip)}</div></div></div>`;
+        h+=`<div style="display:flex;gap:6px">`;
+        if(nc) h+=`<span class="reco-badge crit" style="font-size:.65rem">${nc} crit</span>`;
+        if(nw) h+=`<span class="reco-badge wb" style="font-size:.65rem">${nw} warn</span>`;
+        if(ni) h+=`<span class="reco-badge ib" style="font-size:.65rem">${ni} info</span>`;
+        if(!nd.issues.length) h+=`<span class="reco-badge" style="background:#dcfce7;color:var(--green);border:1px solid #86efac;font-size:.65rem">\u2705 OK</span>`;
+        h+=`</div></div>`;
+
+        // Issues sorted by severity
+        const sorted=[...nd.issues].sort((a,b)=>{const o={critical:0,warning:1,info:2};return(o[a.severity]||3)-(o[b.severity]||3);});
+        for(const issue of sorted){
+            const barCls=issue.severity==='critical'?'dc':issue.severity==='warning'?'dw':'di';
+            h+=`<div class="diag-issue"><div class="diag-bar ${barCls}"></div><div>`;
+            h+=`<span class="diag-cat">${esc(issue.category)}</span>`;
+            h+=`<div class="diag-title">${esc(issue.title)}</div>`;
+            h+=`<div class="diag-solution"><b>\u{1F4A1} Solution:</b> ${esc(issue.solution)}</div>`;
+            if(issue.sample) h+=`<div class="diag-sample" title="${esc(issue.sample)}">${esc(issue.sample)}</div>`;
+            h+=`</div></div>`;
+        }
+
+        // Raw errors (collapsible)
+        if(nd.raw_errors?.length){
+            h+=`<div style="padding:6px 16px"><details><summary style="cursor:pointer;font-size:.65rem;font-weight:600;color:var(--text3)">Journal erreurs brut (${nd.raw_errors.length} lignes)</summary>`;
+            h+=`<div class="log-lines" style="max-height:200px;margin-top:4px">`;
+            for(const line of nd.raw_errors){
+                const isErr=line.toLowerCase().includes('error')||line.toLowerCase().includes('fail')||line.toLowerCase().includes('crit');
+                h+=`<div class="log-line ${isErr?'l-err':''}" style="font-size:.62rem">${esc(line)}</div>`;
+            }
+            h+=`</div></details></div>`;
+        }
+
+        h+=`</div>`;
+    }
+    h+='</div>';
+    el.innerHTML=h;
+}
+
 // === AGENT INSTALL MODAL ===
 function showModal(html){
     const m=document.getElementById('agentModal');
@@ -1360,6 +1764,55 @@ rc-service qemu-guest-agent start</pre>
         </div>
         <p style="margin-top:10px;font-size:.72rem"><b>Ensuite dans Proxmox :</b> VM > Options > QEMU Guest Agent > Cocher "Use QEMU Guest Agent"</p>
         <div class="btn-row"><button class="btn" onclick="hideModal()">Fermer</button></div>`);
+}
+
+// === ABOUT ===
+function showAbout(){
+    showModal(`
+        <div style="text-align:center;padding:10px 0">
+            <div style="width:56px;height:56px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-weight:800;font-size:20px;color:#fff;box-shadow:0 4px 16px rgba(37,99,235,.3);">CM</div>
+            <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:2px;">Cluster Manager</h2>
+            <div style="font-size:.72rem;color:var(--text3);margin-bottom:4px;">Version 2.0.0</div>
+            <div style="font-size:.78rem;color:var(--accent);font-weight:600;">Ayi NEDJIMI Consultants</div>
+            <a href="https://www.ayinedjimi-consultants.fr" target="_blank" style="font-size:.68rem;color:var(--text3);text-decoration:none;">www.ayinedjimi-consultants.fr</a>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin:16px 0;padding-top:16px;">
+            <div style="font-size:.78rem;font-weight:600;margin-bottom:10px;text-align:center;">Outil de monitoring et gestion de clusters Proxmox VE</div>
+            <div style="font-size:.68rem;color:var(--text2);text-align:center;line-height:1.6;">
+                Dashboard temps reel avec score de sante, benchmarks,<br>
+                analyse de performance, recommandations d'optimisation,<br>
+                audit de securite et integration QEMU Guest Agent.
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin:16px 0;padding-top:16px;">
+            <div style="font-size:.78rem;font-weight:600;margin-bottom:12px;text-align:center;">Remerciements</div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem;flex-shrink:0;">CC</div>
+                    <div><div style="font-size:.78rem;font-weight:600;">Celestin CHARLET</div></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem;flex-shrink:0;">JT</div>
+                    <div><div style="font-size:.78rem;font-weight:600;">Jeanel TONDA LUKUSA</div></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);">
+                    <div style="width:36px;height:36px;background:linear-gradient(135deg,#f59e0b,#ef4444);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem;flex-shrink:0;">KM</div>
+                    <div><div style="font-size:.78rem;font-weight:600;">Kevin MOUTOUSSAMY</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border);margin:16px 0;padding-top:12px;text-align:center;">
+            <div style="font-size:.6rem;color:var(--text3);line-height:1.6;">
+                &copy; 2026 Ayi NEDJIMI Consultants - Tous droits reserves<br>
+                Licence MIT | <a href="https://github.com/ayinedjimi/proxmox-cluster-manager" target="_blank" style="color:var(--accent);text-decoration:none;">GitHub</a>
+            </div>
+        </div>
+
+        <div class="btn-row" style="justify-content:center;"><button class="btn" onclick="hideModal()">Fermer</button></div>
+    `);
 }
 
 fetchStatus();setInterval(fetchStatus,RI);

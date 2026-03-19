@@ -8,6 +8,9 @@ import requests
 import urllib3
 import time
 import paramiko
+import sqlite3
+import json as json_lib
+import os
 from config import (
     PROXMOX_CLUSTER, REFRESH_INTERVAL,
     SYSLOG_LINES, TASK_LIMIT, CLUSTER_LOG_MAX,
@@ -17,6 +20,24 @@ from config import (
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
+
+# SQLite for benchmark history
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "benchmarks.db")
+
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""CREATE TABLE IF NOT EXISTS benchmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT DEFAULT (datetime('now','localtime')),
+        node TEXT, node_ip TEXT, bench_type TEXT,
+        results TEXT, raw TEXT
+    )""")
+    conn.commit()
+    conn.close()
+
+
+init_db()
 
 _auth_cache = {"ticket": None, "csrf": None, "host": None, "expires": 0}
 
@@ -1874,12 +1895,416 @@ def api_benchmark():
         else:
             return jsonify({"error": f"Type de benchmark inconnu: {bench_type}"}), 400
 
+        # Save to SQLite
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("INSERT INTO benchmarks (node, node_ip, bench_type, results, raw) VALUES (?,?,?,?,?)",
+                         (node_name, node_ip, bench_type,
+                          json_lib.dumps(result.get("results", [])),
+                          result.get("raw", "")))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
         return jsonify(result)
 
     except paramiko.AuthenticationException:
         return jsonify({"error": "Authentification SSH echouee"}), 500
     except Exception as e:
         return jsonify({"error": str(e), "results": result.get("results", [])}), 500
+
+
+@app.route("/api/benchmark/history")
+def api_benchmark_history():
+    """Retourne l'historique des benchmarks."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM benchmarks ORDER BY timestamp DESC LIMIT 200"
+        ).fetchall()
+        conn.close()
+        return jsonify([dict(r) for r in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Architecture enrichie ───────────────────────────────────────────────────
+
+@app.route("/api/architecture")
+def api_architecture():
+    """Données d'architecture enrichies: Corosync, knet, réplication, ZFS."""
+    host_api, ticket, _ = get_ticket()
+    if not host_api:
+        return jsonify({"error": "Non connecte"}), 503
+
+    result = {
+        "corosync": {}, "nodes_detail": [], "replication": [],
+        "zfs_tuning": {}, "network_links": [],
+    }
+
+    # Corosync totem config
+    totem = proxmox_api(host_api, "/cluster/config/totem")
+    if isinstance(totem, dict) and "error" not in totem:
+        result["corosync"]["cluster_name"] = totem.get("cluster_name", "")
+        result["corosync"]["secauth"] = totem.get("secauth", "off")
+        result["corosync"]["link_mode"] = totem.get("link_mode", "")
+        result["corosync"]["ip_version"] = totem.get("ip_version", "")
+        result["corosync"]["config_version"] = totem.get("config_version", "")
+        ifaces = totem.get("interface", {})
+        result["corosync"]["links"] = []
+        if isinstance(ifaces, dict):
+            for num, iface in ifaces.items():
+                result["corosync"]["links"].append({"linknumber": num, **iface})
+
+    # Corosync nodes config
+    cnodes = proxmox_api(host_api, "/cluster/config/nodes")
+    if isinstance(cnodes, list):
+        result["corosync"]["nodes"] = cnodes
+
+    # Qdevice
+    qdevice = proxmox_api(host_api, "/cluster/config/qdevice")
+    result["corosync"]["qdevice"] = bool(qdevice) if isinstance(qdevice, dict) and qdevice else False
+
+    # Cluster status
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "cluster":
+                result["corosync"]["quorate"] = bool(item.get("quorate"))
+                result["corosync"]["total_nodes"] = item.get("nodes")
+
+    # Replication
+    repl = proxmox_api(host_api, "/cluster/replication")
+    if isinstance(repl, list):
+        result["replication"] = repl
+
+    # Per-node details via SSH
+    nodes_list = proxmox_api(host_api, "/nodes")
+    if not isinstance(nodes_list, list):
+        return jsonify(result)
+
+    # Get node IPs
+    node_ips = {}
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node":
+                node_ips[item.get("name")] = item.get("ip")
+
+    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+        nn = node.get("node", "")
+        if node.get("status") != "online":
+            result["nodes_detail"].append({"name": nn, "online": False})
+            continue
+
+        nd = {"name": nn, "online": True, "ip": node_ips.get(nn, ""),
+              "transport": "", "link_status": [], "jumbo_frames": False,
+              "mtu": 1500, "zfs": {}, "corosync_ok": False, "heartbeat_ok": False}
+
+        node_ip = node_ips.get(nn)
+        if not node_ip:
+            result["nodes_detail"].append(nd)
+            continue
+
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(node_ip,
+                        username=PROXMOX_CLUSTER["username"].split("@")[0],
+                        password=PROXMOX_CLUSTER["password"], timeout=5)
+
+            # Corosync status (knet transport, link status)
+            _, stdout, _ = ssh.exec_command("corosync-cfgtool -s 2>/dev/null", timeout=5)
+            coro_status = stdout.read().decode()
+            if "transport knet" in coro_status:
+                nd["transport"] = "knet (Kronosnet)"
+            elif "transport udp" in coro_status:
+                nd["transport"] = "udp"
+            else:
+                nd["transport"] = "knet"
+
+            # Parse link status
+            for line in coro_status.split("\n"):
+                if "nodeid:" in line and "localhost" not in line:
+                    parts = line.strip().split()
+                    nid = ""
+                    status = ""
+                    for i, p in enumerate(parts):
+                        if p == "nodeid:":
+                            nid = parts[i + 1].rstrip(":")
+                        if p in ("connected", "disconnected"):
+                            status = p
+                    if nid:
+                        nd["link_status"].append({"nodeid": nid, "status": status})
+
+            nd["corosync_ok"] = all(l["status"] == "connected" for l in nd["link_status"])
+            nd["heartbeat_ok"] = nd["corosync_ok"]
+
+            # MTU / Jumbo frames
+            _, stdout, _ = ssh.exec_command("ip link show vmbr0 2>/dev/null | head -1", timeout=5)
+            link_out = stdout.read().decode()
+            import re
+            mtu_match = re.search(r'mtu (\d+)', link_out)
+            if mtu_match:
+                nd["mtu"] = int(mtu_match.group(1))
+                nd["jumbo_frames"] = nd["mtu"] >= 9000
+
+            # ZFS tuning
+            _, stdout, _ = ssh.exec_command("cat /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null", timeout=5)
+            arc_max = stdout.read().decode().strip()
+            _, stdout, _ = ssh.exec_command("cat /proc/spl/kstat/zfs/arcstats 2>/dev/null | awk '/^size|^c_max|^hits|^misses/{print $1,$3}'", timeout=5)
+            arc_raw = stdout.read().decode().strip()
+            _, stdout, _ = ssh.exec_command("zpool list -H -o name,size,alloc,free,health 2>/dev/null", timeout=5)
+            zpool_out = stdout.read().decode().strip()
+            _, stdout, _ = ssh.exec_command("cat /etc/modprobe.d/zfs.conf 2>/dev/null", timeout=5)
+            zfs_conf = stdout.read().decode().strip()
+
+            nd["zfs"]["loaded"] = bool(arc_max)
+            nd["zfs"]["arc_max"] = int(arc_max) if arc_max.isdigit() else 0
+            nd["zfs"]["arc_max_fmt"] = fmt_bytes(int(arc_max)) if arc_max.isdigit() else "N/A"
+            nd["zfs"]["persistent_config"] = "zfs_arc_max" in zfs_conf
+            nd["zfs"]["config_file"] = zfs_conf
+
+            # ARC stats
+            arc_stats = {}
+            for line in arc_raw.split("\n"):
+                parts = line.split()
+                if len(parts) == 2 and parts[1].isdigit():
+                    arc_stats[parts[0]] = int(parts[1])
+            nd["zfs"]["arc_size"] = fmt_bytes(arc_stats.get("size", 0))
+            hits = arc_stats.get("hits", 0)
+            misses = arc_stats.get("misses", 0)
+            nd["zfs"]["hit_ratio"] = round(hits / max(hits + misses, 1) * 100, 1)
+
+            # Pools
+            nd["zfs"]["pools"] = []
+            if zpool_out:
+                for line in zpool_out.split("\n"):
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        nd["zfs"]["pools"].append({
+                            "name": parts[0], "size": parts[1],
+                            "alloc": parts[2], "free": parts[3],
+                            "health": parts[4],
+                        })
+
+            ssh.close()
+        except Exception:
+            pass
+
+        result["nodes_detail"].append(nd)
+
+    return jsonify(result)
+
+
+# ── Diagnostics ─────────────────────────────────────────────────────────────
+
+DIAGNOSTIC_RULES = [
+    # (pattern_in_log, category, severity, title, solution)
+    ("oom-killer", "Memoire", "critical", "OOM Killer active - Un processus a ete tue par manque de RAM",
+     "Ajouter de la RAM, reduire la memoire des VMs, ou activer le ballooning. Verifier: dmesg | grep -i oom"),
+    ("oom_reaper", "Memoire", "critical", "OOM Reaper - Recuperation memoire d'urgence",
+     "Le systeme manque critiquement de RAM. Migrer des VMs ou ajouter de la memoire."),
+    ("out of memory", "Memoire", "critical", "Out of Memory detecte",
+     "Ajouter de la RAM ou reduire la charge. Verifier swap et ballooning."),
+    ("no active links", "Reseau Cluster", "warning", "Corosync: Lien entre noeuds inactif",
+     "Verifier la connectivite reseau entre les noeuds. Verifier: corosync-cfgtool -s. Causes: switch, cable, firewall."),
+    ("inotify poll request in wrong process", "PVE Proxy", "info", "PVE Proxy: inotify dans mauvais processus",
+     "Benin - se produit lors du reload du proxy. Pas d'action necessaire. Si frequent: systemctl restart pveproxy"),
+    ("unable to write lrm status", "HA Manager", "warning", "HA LRM ne peut pas ecrire son statut",
+     "Le filesystem cluster /etc/pve n'est pas accessible. Verifier: pvecm status. Peut indiquer un probleme de quorum."),
+    ("Permission denied", "Systeme", "warning", "Acces refuse a un fichier",
+     "Verifier les permissions du fichier concerne. Possible probleme pmxcfs si /etc/pve."),
+    ("connection reset by peer", "Reseau", "info", "Connexion reinitialise par le client",
+     "Le client a ferme la connexion. Normal si le navigateur a ete ferme. Pas d'action."),
+    ("cgroup: fork rejected", "Systeme", "critical", "Fork rejete par cgroup - Limite de processus atteinte",
+     "Augmenter la limite PIDs du cgroup ou reduire le nombre de processus."),
+    ("i/o error", "Stockage", "critical", "Erreur I/O detectee",
+     "URGENT: Verifier le disque avec smartctl -a /dev/sdX. Possible defaillance materielle."),
+    ("ext4.*error", "Stockage", "critical", "Erreur filesystem ext4",
+     "Verifier avec fsck (hors ligne). Possible corruption ou disque defaillant."),
+    ("zfs.*error", "Stockage", "warning", "Erreur ZFS detectee",
+     "Verifier: zpool status. Possible disque defaillant dans le pool."),
+    ("DEGRADED", "Stockage", "critical", "Pool ZFS/RAID en mode degrade",
+     "URGENT: Un disque du pool est defaillant. Remplacer le disque au plus vite. zpool status pour details."),
+    ("task.*failed", "Taches", "warning", "Tache Proxmox echouee",
+     "Verifier les details dans Datacenter > Taches. Causes courantes: espace disque, permissions, reseau."),
+    ("apt-get update.*failed", "Mises a jour", "warning", "Echec de la mise a jour APT",
+     "Verifier /etc/apt/sources.list. Possible probleme DNS ou proxy. Tester: apt-get update manuellement."),
+    ("CRIT.*corosync", "Cluster", "critical", "Erreur critique Corosync",
+     "Le cluster est instable. Verifier: pvecm status, corosync-cfgtool -s. Possible perte de quorum."),
+    ("split.brain", "Cluster", "critical", "Split-brain detecte",
+     "URGENT: Les noeuds ne communiquent plus. Risque de corruption. Verifier le reseau immediatement."),
+    ("bond.*link.*down", "Reseau", "warning", "Lien bonding down",
+     "Un lien du bond est tombe. Verifier le cable/switch. Le bonding assure la redondance."),
+    ("temperature", "Materiel", "warning", "Alerte temperature",
+     "Verifier la ventilation du serveur. Nettoyer les filtres. lm-sensors pour details."),
+    ("mce.*hardware error", "Materiel", "critical", "Erreur materielle MCE",
+     "Machine Check Exception detecte. Possible probleme CPU/RAM. Verifier mcelog."),
+    ("nf_conntrack.*table full", "Reseau", "warning", "Table conntrack pleine",
+     "Augmenter: sysctl -w net.netfilter.nf_conntrack_max=262144. Ajouter dans /etc/sysctl.conf"),
+    ("blocked for more than", "Systeme", "warning", "Processus bloque (hung task)",
+     "Un processus est bloque sur une operation I/O. Verifier le stockage et les disques."),
+]
+
+
+@app.route("/api/diagnostics")
+def api_diagnostics():
+    """Analyse les journaux systeme et propose des diagnostics avec solutions."""
+    host_api, ticket, _ = get_ticket()
+    if not host_api:
+        return jsonify({"error": "Non connecte"}), 503
+
+    result = {"nodes": [], "summary": {"critical": 0, "warning": 0, "info": 0}}
+
+    nodes_list = proxmox_api(host_api, "/nodes")
+    if not isinstance(nodes_list, list):
+        return jsonify(result)
+
+    # Get node IPs
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    node_ips = {}
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node":
+                node_ips[item.get("name")] = item.get("ip")
+
+    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+        nn = node.get("node", "")
+        if node.get("status") != "online":
+            continue
+
+        node_ip = node_ips.get(nn)
+        if not node_ip:
+            continue
+
+        nd = {"name": nn, "ip": node_ip, "issues": [], "services_failed": [],
+              "disk_health": [], "network_errors": [], "raw_errors": []}
+
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(node_ip,
+                        username=PROXMOX_CLUSTER["username"].split("@")[0],
+                        password=PROXMOX_CLUSTER["password"], timeout=5)
+
+            # System errors (last 24h)
+            _, stdout, _ = ssh.exec_command(
+                "journalctl -p err --since '24 hours ago' -n 50 --no-pager -o short 2>/dev/null", timeout=10)
+            sys_errors = stdout.read().decode("utf-8", errors="replace")
+
+            # Warnings too
+            _, stdout, _ = ssh.exec_command(
+                "journalctl -p warning --since '24 hours ago' -n 30 --no-pager -o short 2>/dev/null", timeout=10)
+            sys_warnings = stdout.read().decode("utf-8", errors="replace")
+
+            # Kernel errors
+            _, stdout, _ = ssh.exec_command(
+                "dmesg -l err,crit,alert,emerg -T 2>/dev/null | tail -20", timeout=10)
+            kernel_errors = stdout.read().decode("utf-8", errors="replace")
+
+            # Failed services
+            _, stdout, _ = ssh.exec_command(
+                "systemctl --failed --no-pager --no-legend 2>/dev/null", timeout=5)
+            failed_svcs = stdout.read().decode("utf-8", errors="replace").strip()
+
+            # Disk SMART
+            _, stdout, _ = ssh.exec_command(
+                "smartctl -H /dev/sda 2>/dev/null | grep -i 'health\\|result'", timeout=5)
+            smart_out = stdout.read().decode("utf-8", errors="replace").strip()
+
+            # Network errors
+            _, stdout, _ = ssh.exec_command(
+                "ip -s link show 2>/dev/null | grep -A1 'errors\\|dropped' | grep -v '0$' | head -10", timeout=5)
+            net_errors = stdout.read().decode("utf-8", errors="replace").strip()
+
+            # APT check
+            _, stdout, _ = ssh.exec_command(
+                "apt-get check 2>&1 | grep -i 'error\\|broken' | head -5", timeout=5)
+            apt_errors = stdout.read().decode("utf-8", errors="replace").strip()
+
+            ssh.close()
+
+            # Analyze all logs with rules
+            all_logs = sys_errors + "\n" + sys_warnings + "\n" + kernel_errors
+            seen_rules = set()
+
+            for line in all_logs.split("\n"):
+                line_lower = line.lower().strip()
+                if not line_lower:
+                    continue
+
+                for pattern, cat, severity, title, solution in DIAGNOSTIC_RULES:
+                    if pattern.lower() in line_lower and pattern not in seen_rules:
+                        seen_rules.add(pattern)
+                        nd["issues"].append({
+                            "category": cat,
+                            "severity": severity,
+                            "title": title,
+                            "solution": solution,
+                            "sample": line.strip()[:200],
+                        })
+                        result["summary"][severity] = result["summary"].get(severity, 0) + 1
+
+            # Failed services
+            if failed_svcs:
+                for line in failed_svcs.split("\n"):
+                    parts = line.split()
+                    if parts:
+                        svc_name = parts[0]
+                        nd["services_failed"].append(svc_name)
+                        nd["issues"].append({
+                            "category": "Services",
+                            "severity": "critical",
+                            "title": f"Service en echec: {svc_name}",
+                            "solution": f"Verifier: systemctl status {svc_name}. Relancer: systemctl restart {svc_name}. Logs: journalctl -u {svc_name} -n 20",
+                            "sample": line.strip(),
+                        })
+                        result["summary"]["critical"] += 1
+
+            # SMART
+            if smart_out:
+                nd["disk_health"].append(smart_out)
+                if "FAILED" in smart_out.upper():
+                    nd["issues"].append({
+                        "category": "Materiel",
+                        "severity": "critical",
+                        "title": "Disque SMART: ECHEC - Remplacement urgent !",
+                        "solution": "Le disque montre des signes de defaillance. Planifier un remplacement IMMEDIAT. Sauvegarder les donnees.",
+                        "sample": smart_out,
+                    })
+                    result["summary"]["critical"] += 1
+
+            # APT
+            if apt_errors:
+                nd["issues"].append({
+                    "category": "Mises a jour",
+                    "severity": "warning",
+                    "title": "Probleme APT detecte",
+                    "solution": "Verifier /etc/apt/sources.list. Essayer: apt-get update && apt-get -f install",
+                    "sample": apt_errors[:200],
+                })
+                result["summary"]["warning"] += 1
+
+            # Store raw errors for display
+            for line in sys_errors.split("\n")[:20]:
+                if line.strip():
+                    nd["raw_errors"].append(line.strip())
+
+        except Exception as e:
+            nd["issues"].append({
+                "category": "Connexion",
+                "severity": "critical",
+                "title": f"Impossible de se connecter en SSH a {nn}",
+                "solution": f"Verifier que SSH est actif et que le mot de passe est correct. Erreur: {e}",
+                "sample": str(e),
+            })
+            result["summary"]["critical"] += 1
+
+        result["nodes"].append(nd)
+
+    return jsonify(result)
 
 
 # ── Installation Agent QEMU via SSH ─────────────────────────────────────────

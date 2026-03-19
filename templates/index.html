@@ -146,17 +146,90 @@
         .qm{text-align:center;padding:8px;border-radius:8px;border:1px solid var(--border);}
         .qm-val{font-size:1.2rem;font-weight:700;}.qm-lbl{font-size:.55rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
         .qm-bar{height:4px;border-radius:2px;background:#e2e8f0;margin-top:4px;overflow:hidden;}.qm-fill{height:100%;border-radius:2px;transition:width .5s;}
-        .qm.ok{background:#f0fdf4;border-color:#bbf7d0;}.qm.ok .qm-val{color:var(--green);}
-        .qm.warn{background:#fffbeb;border-color:#fde68a;}.qm.warn .qm-val{color:var(--yellow);}
+        .qm.ok{background:#f0fdf4;border-color:#86efac;}.qm.ok .qm-val{color:var(--green);}
+        .qm.warn{background:#fef3c7;border-color:#f59e0b;}.qm.warn .qm-val{color:#b45309;}
+        .qm.crit{background:#fee2e2;border-color:var(--red-b);}.qm.crit .qm-val{color:var(--red);}
         .qm.crit{background:#fef2f2;border-color:#fecaca;}.qm.crit .qm-val{color:var(--red);}
         .qn-extra{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;font-size:.65rem;}
         .qe{padding:3px 8px;border-radius:5px;background:var(--bg);border:1px solid var(--border);color:var(--text2);}
         .qe.bad{background:var(--red-bg);color:var(--red);border-color:var(--red-b);}
+        .qe.mid{background:var(--yellow-bg);color:var(--yellow);border-color:#fde68a;}
         .quick-vms{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
         .quick-vms .sec-h{padding:10px 16px;background:var(--hover);border-bottom:1px solid var(--border);}
         .quick-corr{margin-top:16px;}
         .corr-card{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);padding:12px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
         .corr-icon{font-size:18px;flex-shrink:0;}.corr-title{font-size:.76rem;font-weight:600;}.corr-detail{font-size:.66rem;color:var(--text2);margin-top:2px;}
+
+        /* OPTIM TAB */
+        .optim-wrap{padding:14px 24px;}
+        .optim-summary{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
+        .optim-score{font-size:1.3rem;font-weight:800;}.optim-counts{display:flex;gap:8px;}
+        .optim-cat{margin-bottom:16px;}
+        .optim-cat-title{font-size:.8rem;font-weight:700;padding:8px 0;border-bottom:2px solid var(--border);margin-bottom:6px;}
+        .chk-row{display:grid;grid-template-columns:24px 1fr auto;gap:8px;align-items:center;padding:6px 10px;border-radius:6px;margin-bottom:3px;font-size:.72rem;cursor:default;}
+        .chk-row:hover{background:var(--hover);}
+        .chk-icon{font-size:14px;text-align:center;}
+        .chk-name{font-weight:500;}.chk-val{font-size:.66rem;color:var(--text3);text-align:right;}
+        .chk-row.ok{}.chk-row.fail{background:#fef2f2;}
+        .chk-tooltip{display:none;position:absolute;background:#1e293b;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:.7rem;max-width:350px;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.3);line-height:1.5;}
+        .chk-row:hover .chk-tooltip{display:block;}
+
+        /* PERF TAB */
+        .perf-wrap{padding:14px 24px;}
+        .perf-cluster{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px;}
+        .perf-kpi{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);padding:14px;text-align:center;}
+        .perf-kpi .big{font-size:1.4rem;font-weight:800;}.perf-kpi .sub{font-size:.58rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+        .perf-kpi .det{font-size:.65rem;color:var(--text2);margin-top:4px;}
+        .perf-nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:14px;}
+        .perf-node{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
+        .perf-node-h{padding:12px 16px;background:var(--hover);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+        .perf-node-name{font-size:.88rem;font-weight:600;}.perf-node-sub{font-size:.62rem;color:var(--text3);}
+
+        /* Benchmark */
+        .bench-panel{margin:14px 24px;background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
+        .bench-h{padding:12px 16px;background:var(--hover);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+        .bench-body{padding:14px 16px;}
+        .bench-grid{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+        .bench-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:#fff;cursor:pointer;font-family:inherit;font-size:.72rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:6px;}
+        .bench-btn:hover{border-color:var(--accent);color:var(--accent);background:#eff6ff;}
+        .bench-btn:disabled{opacity:.5;cursor:not-allowed;}
+        .bench-btn .ico{font-size:16px;}
+        .bench-select{padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:.72rem;background:#fff;}
+        .bench-result{margin-top:10px;}
+        .bench-result-card{background:var(--bg);border-radius:8px;border:1px solid var(--border);padding:10px 14px;margin-bottom:8px;}
+        .bench-result-h{font-size:.78rem;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+        .bench-result-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(0,0,0,.04);font-size:.72rem;}
+        .bench-result-row:last-child{border:none;}
+        .bench-val{font-weight:600;}.bench-val.good{color:var(--green);}.bench-val.warn{color:var(--yellow);}.bench-val.bad{color:var(--red);}.bench-val.info{color:var(--accent);}
+        .bench-raw{background:#1e293b;color:#e2e8f0;border-radius:6px;padding:10px;margin-top:8px;font-family:monospace;font-size:.62rem;max-height:150px;overflow-y:auto;white-space:pre-wrap;display:none;}
+        .bench-spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;}
+
+        /* STORAGE TAB */
+        .sto-wrap{padding:14px 24px;}
+        .sto-alerts{margin-bottom:14px;}
+        .sto-alert{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;margin-bottom:6px;font-size:.75rem;font-weight:500;}
+        .sto-alert.sa-crit{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}
+        .sto-alert.sa-warn{background:var(--yellow-bg);color:var(--yellow);border:1px solid #fde68a;}
+        .sto-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));gap:14px;}
+        .sto-card{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
+        .sto-card-h{padding:12px 16px;background:var(--hover);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+        .sto-card-name{font-size:.88rem;font-weight:600;}.sto-card-meta{font-size:.65rem;color:var(--text3);}
+        .sto-card-body{padding:14px 16px;}
+        .sto-bars{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:12px;}
+        .sto-bar-item{}.sto-bar-label{display:flex;justify-content:space-between;font-size:.68rem;margin-bottom:3px;}
+        .sto-bar-label .l{color:var(--text2);font-weight:500;}.sto-bar-label .r{color:var(--text3);}
+        .sto-bar-bg{height:18px;background:#e2e8f0;border-radius:4px;overflow:hidden;position:relative;}
+        .sto-bar-fill{height:100%;border-radius:4px;transition:width .5s;position:absolute;top:0;left:0;}
+        .sto-bar-fill.real{z-index:2;}.sto-bar-fill.prov{z-index:1;opacity:.35;}
+        .sto-bar-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-weight:600;color:var(--text);z-index:3;}
+        .sto-legend{display:flex;gap:12px;font-size:.62rem;color:var(--text3);margin-top:4px;flex-wrap:wrap;}
+        .sto-legend-dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:3px;vertical-align:middle;}
+        .sto-vols{margin-top:10px;}
+        .sto-vols table{font-size:.68rem;}
+        .sto-vols th{font-size:.58rem;}
+        .sto-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:.58rem;font-weight:600;}
+        .sto-tag.thin{background:#dbeafe;color:#1d4ed8;}.sto-tag.thick{background:#e2e8f0;color:var(--text3);}
+        .sto-tag.overcommit{background:var(--red-bg);color:var(--red);}
 
         /* MODAL */
         .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;}
@@ -195,7 +268,9 @@
 <div class="tabs-bar">
     <div class="tab active" data-tab="quick">Vue rapide</div>
     <div class="tab" data-tab="main">Vue principale</div>
-    <div class="tab" data-tab="advanced">Performance</div>
+    <div class="tab" data-tab="storage">Stockage</div>
+    <div class="tab" data-tab="perf">Performances</div>
+    <div class="tab" data-tab="optim">Optimisations</div>
     <div class="tab" data-tab="logs">Journaux</div>
     <div class="tab" data-tab="reco">Recommandations</div>
     <div class="tab" data-tab="audit">Audit</div>
@@ -210,7 +285,9 @@
     <div class="grid" id="mainGrid"><div class="loading"><div class="spinner"></div>Connexion au cluster...</div></div>
     <div class="tasks-panel" id="tasksPanel" style="display:none"><div class="sec-h"><span class="sec-t">Taches recentes</span></div><div class="sec" id="tasksList"></div></div>
 </div>
-<div id="tab-advanced" class="tab-content"><div class="adv-grid" id="advGrid"><div class="loading">Chargez les donnees...</div></div></div>
+<div id="tab-storage" class="tab-content"><div id="storageContent"><div class="loading"><div class="spinner"></div>Chargement...</div></div></div>
+<div id="tab-perf" class="tab-content"><div id="perfContent"><div class="loading"><div class="spinner"></div>Chargement...</div></div></div>
+<div id="tab-optim" class="tab-content"><div id="optimContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
 <div id="tab-logs" class="tab-content"><div id="logsContent"><div class="loading"><div class="spinner"></div>Chargement des journaux...</div></div></div>
 <div id="tab-reco" class="tab-content"><div id="recoContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
 <div id="tab-audit" class="tab-content"><div id="auditContent"><div class="loading"><div class="spinner"></div>Audit en cours...</div></div></div>
@@ -234,7 +311,9 @@ document.querySelectorAll('.tab').forEach(t=>{
         const name=t.dataset.tab;
         document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
         document.querySelectorAll('.tab-content').forEach(x=>x.classList.toggle('active',x.id==='tab-'+name));
-        if(name==='advanced'&&lastData)renderAdvanced(lastData);
+        if(name==='storage'&&!storageLoaded)loadStorage();
+        if(name==='perf')loadPerf();
+        if(name==='optim'&&!optimLoaded)loadOptim();
         if(name==='logs'&&!logsLoaded)loadLogs();
         if(name==='reco'&&!recoLoaded)loadReco();
         if(name==='audit')loadAudit();
@@ -264,6 +343,8 @@ function vmTable(items,type){
             const aIcon=v.agent_running?'\u2705':v.agent_enabled?'\u26A0':'\u274C';
             const aTitle=v.agent_running&&v.guest_agent?.os?v.guest_agent.os:as;
             const clickable=!v.agent_running?` onclick="openInstallAgent('${v.vmid}','${esc(v.name)}','${esc(v._node||'')}','')" style="cursor:pointer;font-size:.65rem" title="Cliquer pour installer l'agent"`:'style="font-size:.65rem"';
+            // Nested virt indicator (from CPU type in config - if host type, nested is available)
+            let nestedHtml='';
             agentHtml=`<td title="${esc(aTitle)}"><span class="${ac}" ${clickable}>${aIcon} ${v.agent_running?'OK'+(v.guest_agent?.os?' ('+esc(v.guest_agent.os)+')':''):v.agent_enabled?'Config\u{1F517}':'\u{1F4E5} Installer'}</span></td>`;
         }
         h+=`<tr><td style="color:var(--text3)">${v.vmid}</td><td><b>${esc(v.name)}</b></td><td>${badge(v.status)}</td>
@@ -579,13 +660,13 @@ function renderQuick(data){
     for(const n of nodes){
         if(!n.online){h+=`<div class="qn"><div class="qn-h"><div><div class="qn-name">${esc(n.name)}</div><div class="qn-ip">${esc(n.ip)}</div></div><span class="badge b-off">Hors ligne</span></div></div>`;continue;}
         const s=n.stats;if(!s)continue;
-        // Grok thresholds
-        const cpuLvl=s.cpu_usage<60?'ok':s.cpu_usage<85?'warn':'crit';
-        const memLvl=s.memory_pct<80?'ok':s.memory_pct<90?'warn':'crit';
-        const diskLvl=s.disk_pct<70?'ok':s.disk_pct<85?'warn':'crit';
+        // Seuils visuels (plus sensibles pour alerter tot)
+        const cpuLvl=s.cpu_usage<50?'ok':s.cpu_usage<75?'warn':'crit';
+        const memLvl=s.memory_pct<60?'ok':s.memory_pct<80?'warn':'crit';
+        const diskLvl=s.disk_pct<60?'ok':s.disk_pct<80?'warn':'crit';
         const swapLvl=s.swap_used_bytes===0?'ok':s.swap_used_bytes<512*1024*1024?'warn':'crit';
-        const loadLvl=n.rrd&&n.rrd.loadavg<=s.cpu_cores?'ok':n.rrd&&n.rrd.loadavg<=s.cpu_cores*1.5?'warn':'crit';
-        const ioLvl=n.rrd?(n.rrd.iowait<5?'ok':n.rrd.iowait<10?'warn':'crit'):'ok';
+        const loadLvl=n.rrd&&n.rrd.loadavg<=s.cpu_cores*0.7?'ok':n.rrd&&n.rrd.loadavg<=s.cpu_cores?'warn':'crit';
+        const ioLvl=n.rrd?(n.rrd.iowait<3?'ok':n.rrd.iowait<8?'warn':'crit'):'ok';
 
         h+=`<div class="qn"><div class="qn-h"><div><div class="qn-name">${esc(n.name)}</div><div class="qn-ip">${esc(n.ip)}</div></div><span class="badge b-on">En ligne</span></div>`;
         h+=`<div class="qn-metrics">
@@ -595,10 +676,10 @@ function renderQuick(data){
         </div>`;
         // Extra metrics
         h+='<div class="qn-extra">';
-        h+=`<div class="qe ${swapLvl==='ok'?'':'bad'}">Swap: ${s.swap_pct}%</div>`;
+        h+=`<div class="qe ${swapLvl!=='ok'?'bad':''}">Swap: ${s.swap_pct}%</div>`;
         if(n.rrd){
-            h+=`<div class="qe ${loadLvl==='ok'?'':loadLvl==='warn'?'':'bad'}">Load: ${n.rrd.loadavg}/${s.cpu_cores}</div>`;
-            h+=`<div class="qe ${ioLvl==='ok'?'':ioLvl==='warn'?'':'bad'}">I/O: ${n.rrd.iowait}%</div>`;
+            h+=`<div class="qe ${loadLvl==='crit'?'bad':loadLvl==='warn'?'mid':''}">Load: ${n.rrd.loadavg}/${s.cpu_cores}</div>`;
+            h+=`<div class="qe ${ioLvl==='crit'?'bad':ioLvl==='warn'?'mid':''}">I/O: ${n.rrd.iowait}%</div>`;
             h+=`<div class="qe">Net: \u2B07${esc(n.rrd.netin)} \u2B06${esc(n.rrd.netout)}</div>`;
         }
         h+=`<div class="qe">Uptime: ${esc(s.uptime)}</div>`;
@@ -737,6 +818,409 @@ async function fetchStatus(){
         document.getElementById('alertBar').className='alert err';document.getElementById('alertLeds').innerHTML='<div class="led led-r"></div>';
         document.getElementById('alertMsg').innerHTML='<b>Erreur de connexion</b>';document.getElementById('alertDet').innerHTML='';
     }finally{btn.disabled=false;btn.style.opacity='1';}}
+
+// === PERFORMANCE TAB ===
+async function loadPerf(){
+    const el=document.getElementById('perfContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Chargement des performances...</div>';
+    try{const r=await fetch('/api/performance');const data=await r.json();renderPerf(data);}
+    catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}}
+
+function renderPerf(data){
+    const el=document.getElementById('perfContent');
+    const ct=data.cluster_totals||{};
+    let h='<div class="perf-wrap">';
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span class="sec-t" style="font-size:.85rem">Performances du cluster</span><button class="btn" onclick="loadPerf()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Rafraichir</button></div>`;
+
+    // Cluster KPIs
+    h+=`<div class="perf-cluster">
+        <div class="perf-kpi"><div class="big" style="color:${pc(ct.cpu_pct||0)}">${ct.cpu_pct||0}%</div><div class="sub">CPU Cluster</div><div class="det">${ct.cpu_used_cores||0}/${ct.cpu_cores||0} cores utilises</div></div>
+        <div class="perf-kpi"><div class="big" style="color:${pc(ct.mem_pct||0)}">${ct.mem_pct||0}%</div><div class="sub">RAM Cluster</div><div class="det">${esc(ct.mem_used||'')} / ${esc(ct.mem_total||'')}</div></div>
+        <div class="perf-kpi"><div class="big" style="color:${ct.vcpu_ratio>2?'var(--red)':ct.vcpu_ratio>1?'var(--yellow)':'var(--green)'}">${ct.vcpu_ratio||0}:1</div><div class="sub">Ratio vCPU</div><div class="det">${ct.vcpu_allocated||0} vCPU / ${ct.cpu_cores||0} cores</div></div>
+        <div class="perf-kpi"><div class="big">${data.nodes?.length||0}</div><div class="sub">Noeuds actifs</div></div>
+    </div>`;
+
+    // Per-node
+    h+='<div class="perf-nodes">';
+    let spkId=0;
+    for(const n of data.nodes||[]){
+        h+=`<div class="perf-node"><div class="perf-node-h"><div><div class="perf-node-name">${esc(n.name)}</div><div class="perf-node-sub">${esc(n.cpu_model)} | ${n.cpu_cores} cores @ ${n.cpu_mhz} MHz</div></div></div>`;
+
+        // Gauges row
+        h+=`<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:12px 14px;border-bottom:1px solid var(--border)">`;
+        h+=`<div class="m"><div class="m-val" style="color:${pc(n.cpu_usage)}">${n.cpu_usage}%</div><div class="m-lbl">CPU</div></div>`;
+        h+=`<div class="m"><div class="m-val" style="color:${pc(n.mem_pct)}">${n.mem_pct}%</div><div class="m-lbl">RAM</div></div>`;
+        h+=`<div class="m"><div class="m-val">${n.loadavg[0]}</div><div class="m-lbl">Load 1m</div></div>`;
+        h+=`<div class="m"><div class="m-val">${n.iowait}%</div><div class="m-lbl">IO Wait</div></div>`;
+        h+=`<div class="m"><div class="m-val" style="color:${n.swap_pct>0?'var(--red)':'var(--green)'}">${n.swap_pct}%</div><div class="m-lbl">Swap</div></div>`;
+        h+=`</div>`;
+
+        // Resource allocation
+        h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)">`;
+        h+=`<div style="padding:6px 10px;background:${n.vcpu_ratio>2?'var(--red-bg)':n.vcpu_ratio>1?'var(--yellow-bg)':'var(--bg)'};border-radius:6px;border:1px solid var(--border)"><div style="font-size:.58rem;color:var(--text3);text-transform:uppercase">vCPU alloues</div><div style="font-size:.9rem;font-weight:700">${n.vcpu_allocated} vCPU <span style="font-size:.7rem;color:var(--text3)">/ ${n.cpu_cores} cores (${n.vcpu_ratio}:1)</span></div></div>`;
+        h+=`<div style="padding:6px 10px;background:${n.mem_alloc_pct>100?'var(--red-bg)':n.mem_alloc_pct>80?'var(--yellow-bg)':'var(--bg)'};border-radius:6px;border:1px solid var(--border)"><div style="font-size:.58rem;color:var(--text3);text-transform:uppercase">RAM allouee</div><div style="font-size:.9rem;font-weight:700">${esc(n.mem_allocated)} <span style="font-size:.7rem;color:var(--text3)">/ ${esc(n.mem_total)} (${n.mem_alloc_pct}%)</span></div></div>`;
+        h+=`</div>`;
+
+        // Day averages
+        if(n.day_avg){
+            h+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 14px;border-bottom:1px solid var(--border)">`;
+            h+=`<div class="m"><div class="m-val" style="font-size:.75rem">${n.day_avg.cpu}%</div><div class="m-lbl">CPU moy 24h</div></div>`;
+            h+=`<div class="m"><div class="m-val" style="font-size:.75rem">${n.day_avg.mem}%</div><div class="m-lbl">RAM moy 24h</div></div>`;
+            h+=`<div class="m"><div class="m-val" style="font-size:.75rem">${n.day_avg.io}%</div><div class="m-lbl">IO moy 24h</div></div>`;
+            h+=`<div class="m"><div class="m-val" style="font-size:.75rem">${n.day_avg.load}</div><div class="m-lbl">Load moy 24h</div></div>`;
+            h+=`</div>`;
+        }
+
+        // PSI
+        if(n.psi){
+            h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px 14px;border-bottom:1px solid var(--border)">`;
+            h+=`<div class="m"><div class="m-val" style="color:${psiC(n.psi.cpu_some)};font-size:.82rem">${n.psi.cpu_some}%</div><div class="m-lbl">PSI CPU</div></div>`;
+            h+=`<div class="m"><div class="m-val" style="color:${psiC(n.psi.mem_full)};font-size:.82rem">${n.psi.mem_full}%</div><div class="m-lbl">PSI Mem full</div></div>`;
+            h+=`<div class="m"><div class="m-val" style="color:${psiC(n.psi.io_full)};font-size:.82rem">${n.psi.io_full}%</div><div class="m-lbl">PSI IO full</div></div>`;
+            h+=`</div>`;
+        }
+
+        // Sparklines
+        if(n.history&&n.history.length>1){
+            const ids={c:`pf_c${spkId}`,m:`pf_m${spkId}`,i:`pf_i${spkId}`,l:`pf_l${spkId}`};spkId++;
+            h+=`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:10px 14px;border-bottom:1px solid var(--border)">`;
+            h+=`<div class="spark"><div class="spark-label">CPU 1h</div><canvas id="${ids.c}"></canvas></div>`;
+            h+=`<div class="spark"><div class="spark-label">RAM 1h</div><canvas id="${ids.m}"></canvas></div>`;
+            h+=`<div class="spark"><div class="spark-label">IO 1h</div><canvas id="${ids.i}"></canvas></div>`;
+            h+=`<div class="spark"><div class="spark-label">Load 1h</div><canvas id="${ids.l}"></canvas></div>`;
+            h+=`</div>`;
+            setTimeout(()=>{
+                drawSparkline(ids.c,n.history.map(h=>h.cpu),'rgb(37,99,235)');
+                drawSparkline(ids.m,n.history.map(h=>h.mem),'rgb(124,58,237)');
+                drawSparkline(ids.i,n.history.map(h=>h.io),'rgb(217,119,6)');
+                drawSparkline(ids.l,n.history.map(h=>h.load),'rgb(22,163,74)');
+            },100);
+        }
+
+        // VM perfs
+        if(n.vm_perfs&&n.vm_perfs.length){
+            h+=`<div class="sec"><div class="sec-h"><span class="sec-t">VMs actives</span></div>`;
+            h+=`<table><thead><tr><th>VM</th><th>CPU</th><th>vCPU</th><th>RAM</th><th>Disk R/W</th><th>Net I/O</th></tr></thead><tbody>`;
+            for(const v of n.vm_perfs){
+                h+=`<tr><td><b>${esc(v.name)}</b> (${v.vmid})</td><td><span class="${pcl(v.cpu)}">${v.cpu}%</span></td><td>${v.vcpu}</td>`;
+                h+=`<td><span class="${pcl(v.mem_pct)}">${v.mem_pct}%</span> <span style="font-size:.6rem;color:var(--text3)">${esc(v.mem_used)}/${esc(v.mem_max)}</span></td>`;
+                h+=`<td style="font-size:.64rem">\u2B07${esc(v.diskread)} \u2B06${esc(v.diskwrite)}</td>`;
+                h+=`<td style="font-size:.64rem">\u2B07${esc(v.netin)} \u2B06${esc(v.netout)}</td></tr>`;
+            }
+            h+=`</tbody></table></div>`;
+        }
+
+        h+=`</div>`;
+    }
+    h+='</div>';
+    // Add benchmark section
+    h+=renderBenchSection();
+    h+='</div>';
+    el.innerHTML=h;
+}
+
+// === BENCHMARKS ===
+let benchResults=[];
+
+function renderBenchSection(){
+    if(!lastData)return'';
+    const nodes=lastData.nodes.filter(n=>n.online);
+    let h=`<div class="bench-panel"><div class="bench-h"><span class="sec-t" style="font-size:.82rem">\u{1F3C1} Benchmarks</span></div><div class="bench-body">`;
+    h+=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">`;
+    h+=`<label style="font-size:.72rem;font-weight:600">Noeud:</label><select id="benchNode" class="bench-select">`;
+    for(const n of nodes) h+=`<option value="${esc(n.ip)}" data-name="${esc(n.name)}">${esc(n.name)} (${esc(n.ip)})</option>`;
+    h+=`</select>`;
+    h+=`<button class="bench-btn" onclick="runAllBench()"><span class="ico">\u{1F680}</span>Tout lancer</button>`;
+    h+=`</div>`;
+
+    h+=`<div class="bench-grid">`;
+    h+=`<button class="bench-btn" onclick="runBench('pveperf')" id="bb_pveperf"><span class="ico">\u{1F4CA}</span>PVE Perf<br><span style="font-size:.58rem;font-weight:400;color:var(--text3)">CPU, Regex, DNS, Disk</span></button>`;
+    h+=`<button class="bench-btn" onclick="runBench('cpu')" id="bb_cpu"><span class="ico">\u{1F9E0}</span>CPU Crypto<br><span style="font-size:.58rem;font-weight:400;color:var(--text3)">AES-256, SHA-256</span></button>`;
+    h+=`<button class="bench-btn" onclick="runBench('memory')" id="bb_memory"><span class="ico">\u{1F4BE}</span>Memoire<br><span style="font-size:.58rem;font-weight:400;color:var(--text3)">Bande passante</span></button>`;
+    h+=`<button class="bench-btn" onclick="runBench('disk_write')" id="bb_disk_write"><span class="ico">\u{270F}</span>Disque Ecriture<br><span style="font-size:.58rem;font-weight:400;color:var(--text3)">Sequentiel 256MB</span></button>`;
+    h+=`<button class="bench-btn" onclick="runBench('disk_read')" id="bb_disk_read"><span class="ico">\u{1F4D6}</span>Disque Lecture<br><span style="font-size:.58rem;font-weight:400;color:var(--text3)">Sequentiel 256MB</span></button>`;
+    h+=`<button class="bench-btn" onclick="runBench('network')" id="bb_network"><span class="ico">\u{1F310}</span>Reseau<br><span style="font-size:.58rem;font-weight:400;color:var(--text3)">Latence inter-noeuds</span></button>`;
+    h+=`</div>`;
+
+    h+=`<div id="benchResults"></div>`;
+    h+=`</div></div>`;
+    return h;
+}
+
+async function runBench(type){
+    const sel=document.getElementById('benchNode');
+    const ip=sel.value;
+    const name=sel.options[sel.selectedIndex].dataset.name;
+    const btn=document.getElementById('bb_'+type);
+    if(btn){btn.disabled=true;btn.innerHTML=`<span class="bench-spinner"></span> En cours...`;}
+
+    try{
+        const r=await fetch('/api/benchmark',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({node_ip:ip,node_name:name,type:type})});
+        const data=await r.json();
+        if(data.error&&!data.results?.length){
+            showBenchResult(type,name,ip,[{name:'Erreur',value:data.error,rating:'bad'}],'');
+        } else {
+            showBenchResult(type,name,ip,data.results||[],data.raw||'');
+        }
+    }catch(e){
+        showBenchResult(type,name,ip,[{name:'Erreur',value:e.message,rating:'bad'}],'');
+    }finally{
+        if(btn){
+            const labels={pveperf:'\u{1F4CA} PVE Perf',cpu:'\u{1F9E0} CPU Crypto',memory:'\u{1F4BE} Memoire',disk_write:'\u{270F} Disque Ecriture',disk_read:'\u{1F4D6} Disque Lecture',network:'\u{1F310} Reseau'};
+            btn.disabled=false;btn.innerHTML=`<span class="ico">${labels[type]?.charAt(0)||''}</span>${labels[type]||type}`;
+        }
+    }
+}
+
+async function runAllBench(){
+    const types=['pveperf','cpu','memory','disk_write','disk_read','network'];
+    for(const t of types) await runBench(t);
+}
+
+function showBenchResult(type,node,ip,results,raw){
+    const el=document.getElementById('benchResults');
+    const labels={pveperf:'PVE Performance',cpu:'CPU Crypto',memory:'Memoire',disk_write:'Disque Ecriture',disk_read:'Disque Lecture',network:'Reseau'};
+    const icons={pveperf:'\u{1F4CA}',cpu:'\u{1F9E0}',memory:'\u{1F4BE}',disk_write:'\u{270F}',disk_read:'\u{1F4D6}',network:'\u{1F310}'};
+    const rid='br_'+type+'_'+Date.now();
+
+    let h=`<div class="bench-result-card"><div class="bench-result-h">${icons[type]||''} ${labels[type]||type} - <span style="color:var(--text3)">${esc(node)} (${esc(ip)})</span> <span style="font-size:.6rem;color:var(--text3)">${new Date().toLocaleTimeString('fr-FR')}</span></div>`;
+    for(const r of results){
+        h+=`<div class="bench-result-row"><span>${esc(r.name)}</span><span class="bench-val ${r.rating}">${esc(r.value)}</span></div>`;
+    }
+    if(raw){
+        h+=`<div style="margin-top:6px"><a href="javascript:void(0)" onclick="document.getElementById('${rid}').style.display=document.getElementById('${rid}').style.display==='none'?'block':'none'" style="font-size:.62rem;color:var(--accent)">Afficher/masquer sortie brute</a></div>`;
+        h+=`<div class="bench-raw" id="${rid}">${esc(raw)}</div>`;
+    }
+    h+=`</div>`;
+
+    // Prepend (latest first)
+    el.innerHTML=h+el.innerHTML;
+}
+
+// === OPTIMISATIONS TAB ===
+let optimLoaded=false;
+async function loadOptim(){
+    const el=document.getElementById('optimContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Analyse des optimisations...</div>';
+    try{const r=await fetch('/api/optimizations');const data=await r.json();optimLoaded=true;renderOptim(data);}
+    catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}}
+
+function renderOptim(data){
+    const el=document.getElementById('optimContent');
+    const ok=data.filter(c=>c.ok).length, fail=data.filter(c=>!c.ok).length;
+    const score=data.length>0?Math.round(ok/data.length*100):100;
+
+    let h='<div class="optim-wrap">';
+    h+=`<div class="optim-summary">
+        <div class="optim-score" style="color:${score>=80?'var(--green)':score>=60?'var(--yellow)':'var(--red)'}">${score}%</div>
+        <span style="font-size:.8rem;font-weight:600">${ok}/${data.length} optimisations appliquees</span>
+        <div class="optim-counts">
+            <span class="reco-badge crit"><div class="dot dot-r"></div>${fail} a corriger</span>
+            <span class="reco-badge ib"><div class="dot dot-g"></div>${ok} OK</span>
+        </div>
+        <button class="btn" onclick="optimLoaded=false;loadOptim();" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Re-analyser</button>
+    </div>`;
+
+    // Group by category then by target
+    const cats={};
+    for(const c of data){
+        const key=c.cat;
+        if(!cats[key])cats[key]=[];
+        cats[key].push(c);
+    }
+
+    // Sort: fail-heavy categories first
+    const catOrder=Object.keys(cats).sort((a,b)=>{
+        const fa=cats[a].filter(c=>!c.ok).length;
+        const fb=cats[b].filter(c=>!c.ok).length;
+        return fb-fa;
+    });
+
+    for(const cat of catOrder){
+        const items=cats[cat];
+        const catOk=items.filter(c=>c.ok).length;
+        const catFail=items.filter(c=>!c.ok).length;
+        h+=`<div class="optim-cat"><div class="optim-cat-title">${esc(cat)} <span style="font-size:.7rem;color:var(--text3)">(${catOk}/${items.length} OK${catFail>0?' | <span style=color:var(--red)>'+catFail+' a optimiser</span>':''})</span></div>`;
+
+        // Sort: fails first, group by target
+        const sorted=items.sort((a,b)=>{if(a.ok===b.ok)return a.target.localeCompare(b.target);return a.ok?1:-1;});
+
+        for(const c of sorted){
+            const cls=c.ok?'ok':'fail';
+            const icon=c.ok?'\u2705':'\u274C';
+            h+=`<div class="chk-row ${cls}" style="position:relative">`;
+            h+=`<div class="chk-icon">${icon}</div>`;
+            h+=`<div><div class="chk-name">${esc(c.target)}: ${esc(c.name)}</div>`;
+            h+=`<div style="font-size:.62rem;color:var(--text3)">Actuel: <b>${esc(c.current)}</b>${!c.ok?' | Recommande: <b style=color:var(--green)>'+esc(c.recommended)+'</b>':''}</div></div>`;
+            h+=`<div class="chk-val">${esc(c.current)}</div>`;
+            if(c.howto){
+                h+=`<div class="chk-tooltip" style="bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:4px"><b>Comment appliquer :</b><br>${esc(c.howto)}<br><br><b>Recommande :</b> ${esc(c.recommended)}</div>`;
+            }
+            h+=`</div>`;
+        }
+        h+=`</div>`;
+    }
+    h+='</div>';
+    el.innerHTML=h;
+}
+
+// === STORAGE TAB ===
+let storageLoaded=false;
+async function loadStorage(){
+    const el=document.getElementById('storageContent');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Analyse du stockage...</div>';
+    try{const r=await fetch('/api/storage');const data=await r.json();storageLoaded=true;renderStorageTab(data);}
+    catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}}
+
+function drawPie(canvasId, segments, size){
+    setTimeout(()=>{
+        const c=document.getElementById(canvasId);if(!c)return;
+        const ctx=c.getContext('2d');
+        c.width=size*2;c.height=size*2;c.style.width=size+'px';c.style.height=size+'px';
+        const cx=size,cy=size,r=size*0.85,ir=size*0.55;
+        let startAngle=-Math.PI/2;
+        for(const seg of segments){
+            const sliceAngle=(seg.pct/100)*2*Math.PI;
+            ctx.beginPath();ctx.arc(cx,cy,r,startAngle,startAngle+sliceAngle);
+            ctx.arc(cx,cy,ir,startAngle+sliceAngle,startAngle,true);
+            ctx.closePath();ctx.fillStyle=seg.color;ctx.fill();
+            startAngle+=sliceAngle;
+        }
+        // Center text
+        ctx.fillStyle='#0f172a';ctx.font=`bold ${size*0.38}px Inter,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+        const mainPct=segments.length>0?segments[0].pct:0;
+        const total=segments.reduce((a,s)=>a+s.pct,0);
+        ctx.fillText(Math.round(total)+'%',cx,cy-size*0.08);
+        ctx.fillStyle='#94a3b8';ctx.font=`${size*0.18}px Inter,sans-serif`;
+        ctx.fillText('utilise',cx,cy+size*0.18);
+    },30);
+}
+
+function renderStorageTab(data){
+    const el=document.getElementById('storageContent');
+    let h='<div class="sto-wrap">';
+
+    // Alerts
+    if(data.alerts&&data.alerts.length){
+        h+='<div class="sto-alerts">';
+        for(const a of data.alerts) h+=`<div class="sto-alert ${a.level==='critical'?'sa-crit':'sa-warn'}"><div class="led ${a.level==='critical'?'led-r':'led-y'}"></div>${esc(a.msg)}</div>`;
+        h+='</div>';
+    }
+
+    // Cluster summary
+    let clusterTotal=0,clusterUsed=0,clusterProv=0;
+    for(const s of data.storages){clusterTotal+=s.total;clusterUsed+=s.used;clusterProv+=s.provisioned_total;}
+
+    h+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+        <div><span class="sec-t" style="font-size:.85rem">Stockage du cluster</span>
+        <span style="font-size:.72rem;color:var(--text3);margin-left:10px">${data.storages.length} volumes | Total: ${esc(fmt_b(clusterTotal))} | Utilise: ${esc(fmt_b(clusterUsed))}</span></div>
+        <button class="btn" onclick="storageLoaded=false;loadStorage();"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Rafraichir</button>
+    </div>`;
+
+    h+='<div class="sto-cards">';
+    let pieId=0;
+    for(const s of data.storages){
+        const usedPct=s.pct;
+        const freePct=Math.max(100-usedPct,0);
+        const provPct=s.provisioned_pct||0;
+        const vmProvPct=s.vm_overcommit_pct||0;
+        const pid='pie_sto_'+(pieId++);
+        const pid2='pie_sto2_'+(pieId++);
+
+        h+=`<div class="sto-card">`;
+        // Header
+        h+=`<div class="sto-card-h"><div><div class="sto-card-name">\u{1F4BE} ${esc(s.node)} / ${esc(s.storage)}</div><div class="sto-card-meta">${esc(s.plugintype)} | ${esc(s.content)} | ${s.vol_count||0} volumes</div></div>`;
+        h+=`<div style="display:flex;gap:5px;align-items:center">`;
+        if(s.is_thin) h+=`<span class="sto-tag thin">Thin Provisioning</span>`;
+        else h+=`<span class="sto-tag thick">Thick</span>`;
+        if(s.overcommit) h+=`<span class="sto-tag overcommit">OVERCOMMIT !</span>`;
+        h+=`</div></div>`;
+
+        h+=`<div class="sto-card-body">`;
+
+        // Main layout: pie + details
+        h+=`<div style="display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:start">`;
+
+        // Pie chart
+        h+=`<div style="text-align:center"><canvas id="${pid}" style="margin:0 auto"></canvas>`;
+        if(s.note) h+=`<div style="font-size:.55rem;color:var(--yellow);margin-top:4px">${esc(s.note)}</div>`;
+        h+=`</div>`;
+
+        // Details
+        h+=`<div>`;
+        // Stats grid
+        h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">`;
+        h+=`<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)"><div style="font-size:1rem;font-weight:700;color:var(--accent)">${esc(s.total_fmt)}</div><div style="font-size:.55rem;color:var(--text3);text-transform:uppercase">Capacite</div></div>`;
+        h+=`<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)"><div style="font-size:1rem;font-weight:700;color:${pc(usedPct)}">${esc(s.used_fmt)}</div><div style="font-size:.55rem;color:var(--text3);text-transform:uppercase">Utilise (${usedPct}%)</div></div>`;
+        h+=`<div style="text-align:center;padding:8px;background:var(--bg);border-radius:6px;border:1px solid var(--border)"><div style="font-size:1rem;font-weight:700;color:var(--green)">${esc(s.free_fmt)}</div><div style="font-size:.55rem;color:var(--text3);text-transform:uppercase">Libre</div></div>`;
+        h+=`</div>`;
+
+        // Bar
+        h+=`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:.62rem;color:var(--text3);margin-bottom:2px"><span>0%</span><span>50%</span><span>100%</span></div>`;
+        h+=`<div class="sto-bar-bg" style="height:14px;position:relative">`;
+        h+=`<div class="sto-bar-fill real ${pcl(usedPct)}" style="width:${Math.min(usedPct,100)}%;height:100%"></div>`;
+        if(s.is_thin&&provPct>0) h+=`<div class="sto-bar-fill prov" style="width:${Math.min(provPct,100)}%;height:100%;background:var(--accent)"></div>`;
+        h+=`</div></div>`;
+
+        // Thin provisioning details
+        if(s.is_thin){
+            h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+            h+=`<div style="padding:6px 8px;background:#eff6ff;border-radius:6px;border:1px solid #bfdbfe"><div style="font-size:.55rem;color:#1d4ed8;text-transform:uppercase;font-weight:600">Provisionne (max)</div><div style="font-size:.88rem;font-weight:700;color:#1d4ed8">${esc(s.provisioned_fmt)}</div><div style="font-size:.55rem;color:var(--text3)">${provPct}% de la capacite</div></div>`;
+
+            if(s.real_avail_fmt){
+                const raNeg=s.real_avail_negative;
+                h+=`<div style="padding:6px 8px;background:${raNeg?'var(--red-bg)':'#f0fdf4'};border-radius:6px;border:1px solid ${raNeg?'var(--red-b)':'#bbf7d0'}"><div style="font-size:.55rem;color:${raNeg?'var(--red)':'var(--green)'};text-transform:uppercase;font-weight:600">Espace reel dispo</div><div style="font-size:.88rem;font-weight:700;color:${raNeg?'var(--red)':'var(--green)'}">${raNeg?'NEGATIF':esc(s.real_avail_fmt)}</div><div style="font-size:.55rem;color:var(--text3)">${raNeg?'Overcommit ! Risque de saturation':'Si toutes les VMs se remplissent'}</div></div>`;
+            } else {
+                h+=`<div style="padding:6px 8px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0"><div style="font-size:.55rem;color:var(--green);text-transform:uppercase;font-weight:600">Espace libre</div><div style="font-size:.88rem;font-weight:700;color:var(--green)">${esc(s.avail_fmt)}</div><div style="font-size:.55rem;color:var(--text3)">Aucune VM provisionee</div></div>`;
+            }
+            h+=`</div>`;
+        }
+        h+=`</div></div>`;
+
+        // VM disk details
+        if(s.vm_disk_details&&s.vm_disk_details.length){
+            h+=`<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px"><div class="sec-h"><span class="sec-t">Disques VM/CT provisionnes</span><span class="sec-c">${s.vm_disk_details.length} disques | ${esc(s.vm_provisioned_fmt)} total</span></div>`;
+            h+=`<table><thead><tr><th>VM/CT</th><th>ID</th><th>Disque</th><th>Taille max</th><th>% stockage</th><th>Barre</th></tr></thead><tbody>`;
+            for(const d of s.vm_disk_details){
+                const dp=s.total>0?round(d.max_size/s.total*100,1):0;
+                h+=`<tr><td><b>${esc(d.name)}</b></td><td>${d.vmid} (${d.type})</td><td>${esc(d.disk)}</td><td style="font-weight:600">${esc(d.max_size_fmt)}</td><td><span class="${pcl(dp)}">${dp}%</span></td>`;
+                h+=`<td style="min-width:80px">${miniBar(dp)}</td></tr>`;
+            }
+            h+=`</tbody></table></div>`;
+        }
+
+        // Volumes
+        if(s.volumes.length){
+            h+=`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:.68rem;font-weight:600;color:var(--text3);padding:4px 0">Tous les volumes (${s.volumes.length})</summary>`;
+            h+=`<table style="margin-top:4px"><thead><tr><th>Volume</th><th>VMID</th><th>Format</th><th>Taille</th></tr></thead><tbody>`;
+            for(const v of s.volumes) h+=`<tr><td style="font-size:.62rem">${esc(v.volid)}</td><td>${v.vmid||'-'}</td><td>${esc(v.format)}</td><td>${esc(v.size_fmt)}</td></tr>`;
+            h+=`</tbody></table></details>`;
+        }
+
+        h+=`</div></div>`;
+
+        // Draw pie after render
+        setTimeout(()=>{
+            const segs=[];
+            if(s.is_thin&&provPct>0){
+                segs.push({pct:Math.min(usedPct,100),color:usedPct<70?'#16a34a':usedPct<85?'#d97706':'#dc2626'});
+                const provExtra=Math.max(provPct-usedPct,0);
+                if(provExtra>0) segs.push({pct:Math.min(provExtra,100-usedPct),color:'rgba(37,99,235,0.3)'});
+                segs.push({pct:Math.max(100-usedPct-provExtra,0),color:'#e2e8f0'});
+            } else {
+                segs.push({pct:Math.min(usedPct,100),color:usedPct<70?'#16a34a':usedPct<85?'#d97706':'#dc2626'});
+                segs.push({pct:freePct,color:'#e2e8f0'});
+            }
+            drawPie(pid,segs,65);
+        },50);
+    }
+    h+='</div></div>';
+    el.innerHTML=h;
+}
+
+function fmt_b(b){for(const u of['B','KB','MB','GB','TB']){if(b<1024)return b.toFixed(1)+' '+u;b/=1024;}return b.toFixed(1)+' PB';}
+function round(v,d){return Math.round(v*Math.pow(10,d))/Math.pow(10,d);}
 
 // === AGENT INSTALL MODAL ===
 function showModal(html){

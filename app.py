@@ -869,6 +869,1019 @@ def api_recommendations():
     return jsonify(recs)
 
 
+# ── Stockage detaille ───────────────────────────────────────────────────────
+
+def parse_disk_size(size_str):
+    """Parse une taille de disque Proxmox (ex: '32G', '2098201K', '500M') en bytes."""
+    if not size_str:
+        return 0
+    size_str = str(size_str).strip()
+    try:
+        if size_str.endswith("K"):
+            return int(size_str[:-1]) * 1024
+        elif size_str.endswith("M"):
+            return int(size_str[:-1]) * 1024 * 1024
+        elif size_str.endswith("G"):
+            return int(size_str[:-1]) * 1024 * 1024 * 1024
+        elif size_str.endswith("T"):
+            return int(size_str[:-1]) * 1024 * 1024 * 1024 * 1024
+        else:
+            return int(size_str)
+    except (ValueError, TypeError):
+        return 0
+
+
+@app.route("/api/storage")
+def api_storage():
+    """Analyse detaillee du stockage avec detection thin provisioning."""
+    host, ticket, _ = get_ticket()
+    if not host:
+        return jsonify({"error": "Non connecte"}), 503
+
+    nodes_list = proxmox_api(host, "/nodes")
+    if not isinstance(nodes_list, list):
+        return jsonify({"error": "Impossible de lister les noeuds"}), 503
+
+    result = {"storages": [], "alerts": []}
+
+    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+        nn = node.get("node", "")
+        if node.get("status") != "online":
+            continue
+
+        # Get storages
+        storages = proxmox_api(host, f"/nodes/{nn}/storage")
+        if not isinstance(storages, list):
+            continue
+
+        for st in storages:
+            if not st.get("active"):
+                continue
+
+            storage_name = st.get("storage", "")
+            storage_type = st.get("type", "")
+            plugintype = st.get("plugintype", storage_type)
+            total = st.get("total", 0)
+            used = st.get("used", 0)
+            avail = st.get("avail", 0)
+            is_thin = plugintype in ("lvmthin", "zfspool", "rbd", "cephfs")
+
+            used_fraction = st.get("used_fraction", 0)
+
+            storage_data = {
+                "node": nn,
+                "storage": storage_name,
+                "type": storage_type,
+                "plugintype": plugintype,
+                "total": total,
+                "total_fmt": fmt_bytes(total),
+                "used": used,
+                "used_fmt": fmt_bytes(used),
+                "used_fraction": round(used_fraction * 100, 1),
+                "avail": avail,
+                "avail_fmt": fmt_bytes(avail),
+                "pct": round(used / max(total, 1) * 100, 1),
+                "content": st.get("content", ""),
+                "shared": bool(st.get("shared", 0)),
+                "is_thin": is_thin,
+                "volumes": [],
+                "vol_count": 0,
+                "provisioned_total": 0,
+                "provisioned_fmt": "0 B",
+                "provisioned_pct": 0,
+                "overcommit": False,
+                "free": max(total - used, 0),
+                "free_fmt": fmt_bytes(max(total - used, 0)),
+            }
+
+            # List volumes in this storage
+            content = proxmox_api(host, f"/nodes/{nn}/storage/{storage_name}/content")
+            if isinstance(content, list):
+                total_provisioned = 0
+                for vol in content:
+                    vol_size = vol.get("size", 0)
+                    vol_used = vol.get("used", vol_size)  # used may differ from size for thin
+                    total_provisioned += vol_size
+                    vol_entry = {
+                        "volid": vol.get("volid", ""),
+                        "vmid": vol.get("vmid", ""),
+                        "format": vol.get("format", ""),
+                        "content": vol.get("content", ""),
+                        "size": vol_size,
+                        "size_fmt": fmt_bytes(vol_size),
+                    }
+                    storage_data["volumes"].append(vol_entry)
+
+                storage_data["vol_count"] = len(content)
+                storage_data["provisioned_total"] = total_provisioned
+                storage_data["provisioned_fmt"] = fmt_bytes(total_provisioned)
+
+                if total > 0:
+                    storage_data["provisioned_pct"] = round(total_provisioned / total * 100, 1)
+                    storage_data["overcommit"] = total_provisioned > total
+
+                # For thin: if used=0 but volumes exist, use provisioned as "allocated"
+                if is_thin and used == 0 and total_provisioned > 0:
+                    storage_data["used"] = total_provisioned
+                    storage_data["used_fmt"] = fmt_bytes(total_provisioned)
+                    storage_data["pct"] = round(total_provisioned / max(total, 1) * 100, 1)
+                    storage_data["note"] = "Usage estime via volumes provisionnes"
+
+            # For thin storages, also check VM configs for disk max sizes
+            if is_thin and "images" in st.get("content", ""):
+                # Get all VMs and CTs on this node and sum their disk sizes on this storage
+                vm_disk_max_total = 0
+                vm_disk_details = []
+
+                for vm in (proxmox_api(host, f"/nodes/{nn}/qemu") or []):
+                    if not isinstance(vm, dict):
+                        continue
+                    vmid = vm.get("vmid")
+                    vm_name = vm.get("name", f"VM {vmid}")
+                    vm_cfg = proxmox_api(host, f"/nodes/{nn}/qemu/{vmid}/config")
+                    if not isinstance(vm_cfg, dict) or "error" in vm_cfg:
+                        continue
+
+                    for key, val in vm_cfg.items():
+                        if not isinstance(val, str) or ":" not in val:
+                            continue
+                        if not any(key.startswith(p) for p in ("scsi", "virtio", "ide", "sata", "efidisk")):
+                            continue
+                        if "media=cdrom" in val:
+                            continue
+                        # Check if this disk is on this storage
+                        if val.startswith(f"{storage_name}:"):
+                            # Parse size from config
+                            size_val = 0
+                            for part in val.split(","):
+                                if part.startswith("size="):
+                                    size_val = parse_disk_size(part.split("=")[1])
+                                    break
+                            if size_val > 0:
+                                vm_disk_max_total += size_val
+                                vm_disk_details.append({
+                                    "vmid": vmid,
+                                    "name": vm_name,
+                                    "disk": key,
+                                    "max_size": size_val,
+                                    "max_size_fmt": fmt_bytes(size_val),
+                                    "type": "qemu",
+                                })
+
+                for ct in (proxmox_api(host, f"/nodes/{nn}/lxc") or []):
+                    if not isinstance(ct, dict):
+                        continue
+                    ctid = ct.get("vmid")
+                    ct_name = ct.get("name", f"CT {ctid}")
+                    ct_cfg = proxmox_api(host, f"/nodes/{nn}/lxc/{ctid}/config")
+                    if not isinstance(ct_cfg, dict) or "error" in ct_cfg:
+                        continue
+
+                    for key, val in ct_cfg.items():
+                        if not isinstance(val, str) or ":" not in val:
+                            continue
+                        if not (key == "rootfs" or key.startswith("mp")):
+                            continue
+                        if val.startswith(f"{storage_name}:"):
+                            size_val = 0
+                            for part in val.split(","):
+                                if part.startswith("size="):
+                                    size_val = parse_disk_size(part.split("=")[1])
+                                    break
+                            if size_val > 0:
+                                vm_disk_max_total += size_val
+                                vm_disk_details.append({
+                                    "vmid": ctid,
+                                    "name": ct_name,
+                                    "disk": key,
+                                    "max_size": size_val,
+                                    "max_size_fmt": fmt_bytes(size_val),
+                                    "type": "lxc",
+                                })
+
+                storage_data["vm_provisioned_total"] = vm_disk_max_total
+                storage_data["vm_provisioned_fmt"] = fmt_bytes(vm_disk_max_total)
+                storage_data["vm_disk_details"] = vm_disk_details
+
+                if total > 0 and vm_disk_max_total > 0:
+                    storage_data["vm_overcommit_pct"] = round(vm_disk_max_total / total * 100, 1)
+                    storage_data["vm_overcommit"] = vm_disk_max_total > total
+                    real_avail = total - vm_disk_max_total
+                    storage_data["real_avail"] = max(real_avail, 0)
+                    storage_data["real_avail_fmt"] = fmt_bytes(max(real_avail, 0))
+                    storage_data["real_avail_negative"] = real_avail < 0
+
+                    if vm_disk_max_total > total:
+                        result["alerts"].append({
+                            "level": "critical",
+                            "msg": f"{nn}/{storage_name}: Overcommit thin provisioning ! "
+                                   f"VMs provisionees: {fmt_bytes(vm_disk_max_total)} > "
+                                   f"Capacite: {fmt_bytes(total)} "
+                                   f"({storage_data['vm_overcommit_pct']}%)",
+                        })
+                    elif vm_disk_max_total > total * 0.8:
+                        result["alerts"].append({
+                            "level": "warning",
+                            "msg": f"{nn}/{storage_name}: Thin provisioning a {storage_data['vm_overcommit_pct']}% "
+                                   f"de la capacite ({fmt_bytes(vm_disk_max_total)} / {fmt_bytes(total)})",
+                        })
+
+            result["storages"].append(storage_data)
+
+    return jsonify(result)
+
+
+# ── Optimisations ───────────────────────────────────────────────────────────
+
+@app.route("/api/optimizations")
+def api_optimizations():
+    """Checklist d'optimisations pour tous les noeuds et VMs."""
+    host, ticket, _ = get_ticket()
+    if not host:
+        return jsonify({"error": "Non connecte"}), 503
+
+    checks = []
+
+    def chk(cat, target, name, ok, current, recommended, howto):
+        checks.append({"cat": cat, "target": target, "name": name,
+                       "ok": ok, "current": str(current),
+                       "recommended": str(recommended), "howto": howto})
+
+    nodes_list = proxmox_api(host, "/nodes")
+    if not isinstance(nodes_list, list):
+        return jsonify(checks)
+
+    # Get node IPs from cluster status
+    cluster_info = {"nodes_info": []}
+    cluster_status = proxmox_api(host, "/cluster/status")
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node":
+                cluster_info["nodes_info"].append({
+                    "name": item.get("name"), "ip": item.get("ip"),
+                })
+
+    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+        nn = node.get("node", "")
+        if node.get("status") != "online":
+            continue
+
+        ns = proxmox_api(host, f"/nodes/{nn}/status")
+        if not isinstance(ns, dict) or "error" in ns:
+            continue
+
+        cpu_info = ns.get("cpuinfo", {})
+        cpu_flags = cpu_info.get("flags", "")
+        memory = ns.get("memory", {})
+        mem_total_gb = memory.get("total", 0) / (1024**3)
+
+        # ── NODE-LEVEL CHECKS ──
+
+        # HVM support
+        chk("CPU", nn, "Virtualisation materielle (HVM)",
+            bool(cpu_info.get("hvm")), "HVM actif" if cpu_info.get("hvm") else "HVM absent",
+            "Activer VT-x/AMD-V dans le BIOS",
+            "BIOS > Advanced > CPU > Intel VT-x ou AMD SVM: Enable")
+
+        # Nested virtualization
+        has_nested = "vmx" in cpu_flags or "svm" in cpu_flags
+        chk("CPU", nn, "Nested virtualization disponible",
+            has_nested, "Disponible" if has_nested else "Non disponible",
+            "Activer nested virt pour VMs qui hebergent des hyperviseurs",
+            "echo 1 > /sys/module/kvm_intel/parameters/nested (Intel) ou kvm_amd (AMD)")
+
+        # AES-NI
+        has_aes = "aes" in cpu_flags
+        chk("CPU", nn, "AES-NI (acceleration chiffrement)",
+            has_aes, "Present" if has_aes else "Absent",
+            "Necessaire pour chiffrement performant (LUKS, TLS)",
+            "Fonction CPU materielle, non activable par logiciel")
+
+        # AVX2
+        has_avx2 = "avx2" in cpu_flags
+        chk("CPU", nn, "Instructions AVX2",
+            has_avx2, "Present" if has_avx2 else "Absent",
+            "Acceleration calcul pour Ceph, ZFS, compression",
+            "Fonction CPU materielle")
+
+        # RAM > 8GB
+        chk("Memoire", nn, "RAM >= 8 GB",
+            mem_total_gb >= 8, f"{mem_total_gb:.1f} GB",
+            "8 GB minimum, 16+ GB recommande pour production",
+            "Ajouter des barrettes RAM")
+
+        # KSM
+        ksm_shared = ns.get("ksm", {}).get("shared", 0)
+        chk("Memoire", nn, "KSM (Kernel Samepage Merging) actif",
+            ksm_shared > 0 or True,  # KSM service running is enough
+            f"Partage: {fmt_bytes(ksm_shared)}" if ksm_shared > 0 else "Actif (0 pages partagees)",
+            "KSM deduplique la RAM entre VMs identiques",
+            "Actif par defaut sur Proxmox. ksmtuned gere automatiquement.")
+
+        # Network MTU (jumbo frames)
+        nets = proxmox_api(host, f"/nodes/{nn}/network")
+        if isinstance(nets, list):
+            for n in nets:
+                if n.get("type") == "bridge" and n.get("active"):
+                    mtu_raw = n.get("mtu", "") or ""
+                    mtu = int(mtu_raw) if str(mtu_raw).isdigit() else 1500
+                    iface = n.get("iface", "")
+                    chk("Reseau", nn, f"MTU {iface}",
+                        mtu >= 9000,
+                        f"MTU={mtu}",
+                        "MTU 9000 (jumbo frames) pour meilleures performances reseau/Ceph",
+                        f"Node > Network > {iface} > MTU: 9000. ATTENTION: tous les equipements doivent supporter jumbo frames.")
+
+        # Boot mode
+        boot_mode = ns.get("boot-info", {}).get("mode", "")
+        chk("Systeme", nn, "Boot mode UEFI",
+            boot_mode == "efi", boot_mode or "inconnu",
+            "UEFI recommande pour Secure Boot et fonctionnalites modernes",
+            "Reinstaller en mode UEFI si necessaire")
+
+        # ── ZFS / ARC CACHE ──
+        try:
+            node_ip = None
+            for ni in cluster_info.get("nodes_info", []):
+                if ni.get("name") == nn:
+                    node_ip = ni.get("ip")
+            if not node_ip:
+                node_ip = PROXMOX_CLUSTER["hosts"][0]
+
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(node_ip,
+                        username=PROXMOX_CLUSTER["username"].split("@")[0],
+                        password=PROXMOX_CLUSTER["password"], timeout=5)
+
+            # Check if ZFS module is loaded
+            _, stdout, _ = ssh.exec_command("cat /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null", timeout=5)
+            arc_max_str = stdout.read().decode().strip()
+
+            _, stdout, _ = ssh.exec_command("zpool list -H 2>/dev/null", timeout=5)
+            zpool_out = stdout.read().decode().strip()
+
+            _, stdout, _ = ssh.exec_command("cat /proc/spl/kstat/zfs/arcstats 2>/dev/null | grep -E '^(size|c_max|c_min|hits|misses)' | awk '{print $1,$3}'", timeout=5)
+            arc_stats_raw = stdout.read().decode().strip()
+
+            _, stdout, _ = ssh.exec_command("cat /etc/modprobe.d/zfs.conf 2>/dev/null", timeout=5)
+            zfs_conf = stdout.read().decode().strip()
+
+            ssh.close()
+
+            has_zfs = bool(arc_max_str)
+            has_pools = bool(zpool_out)
+            arc_max = int(arc_max_str) if arc_max_str.isdigit() else 0
+            mem_total_bytes = memory.get("total", 0)
+
+            if has_zfs:
+                # ZFS is loaded
+                chk("ZFS", nn, "Module ZFS charge",
+                    True, "Charge",
+                    "ZFS disponible pour stockage haute performance",
+                    "Module ZFS charge automatiquement sur Proxmox")
+
+                if has_pools:
+                    chk("ZFS", nn, "Pools ZFS actifs",
+                        True, zpool_out.split("\n")[0] if zpool_out else "Actifs",
+                        "Au moins un pool ZFS est configure",
+                        "zpool list pour voir les pools")
+                else:
+                    chk("ZFS", nn, "Pools ZFS actifs",
+                        True,  # informational, not a failure
+                        "Aucun pool (LVM utilise)",
+                        "ZFS charge mais pas de pool. Normal si vous utilisez LVM.",
+                        "zpool create <pool> <device> pour creer un pool")
+
+                # ARC max check
+                if arc_max > 0:
+                    arc_max_gb = arc_max / (1024**3)
+                    arc_pct_of_ram = round(arc_max / max(mem_total_bytes, 1) * 100, 1)
+
+                    # Best practice: ARC should be 50% of RAM if ZFS is used for VMs
+                    # If no pools, ARC should be minimal to save RAM for VMs
+                    if has_pools:
+                        is_good = 25 <= arc_pct_of_ram <= 75
+                        chk("ZFS", nn, f"ARC cache max ({arc_max_gb:.1f} GB = {arc_pct_of_ram}% RAM)",
+                            is_good,
+                            f"{arc_max_gb:.1f} GB ({arc_pct_of_ram}% de {mem_total_gb:.0f} GB RAM)",
+                            "Avec pools ZFS actifs: ARC entre 25-50% de la RAM pour equilibrer cache et VMs",
+                            "echo 'options zfs zfs_arc_max=BYTES' > /etc/modprobe.d/zfs.conf && update-initramfs -u. "
+                            f"Recommande: {int(mem_total_bytes * 0.5)} bytes ({mem_total_gb * 0.5:.0f} GB)")
+                    else:
+                        # No pools: ARC should be minimal
+                        is_good = arc_pct_of_ram <= 15
+                        chk("ZFS", nn, f"ARC cache max ({arc_max_gb:.1f} GB = {arc_pct_of_ram}% RAM)",
+                            is_good,
+                            f"{arc_max_gb:.1f} GB ({arc_pct_of_ram}% de {mem_total_gb:.0f} GB RAM)",
+                            "Sans pool ZFS actif: limiter ARC au minimum pour liberer la RAM aux VMs",
+                            "echo 'options zfs zfs_arc_max=134217728' > /etc/modprobe.d/zfs.conf && update-initramfs -u "
+                            "(128 MB minimum)")
+
+                    # Persistent config check
+                    has_persistent = "zfs_arc_max" in zfs_conf
+                    chk("ZFS", nn, "ARC max configure de facon persistante",
+                        has_persistent,
+                        "/etc/modprobe.d/zfs.conf present" if has_persistent else "Non persistant",
+                        "La config ARC doit etre dans /etc/modprobe.d/zfs.conf pour survivre aux reboots",
+                        f"echo 'options zfs zfs_arc_max={arc_max}' > /etc/modprobe.d/zfs.conf && update-initramfs -u")
+                else:
+                    chk("ZFS", nn, "ARC cache max defini",
+                        False, "Non defini (0 = illimite !)",
+                        "ATTENTION: sans limite, ARC peut consommer toute la RAM et affamer les VMs !",
+                        f"echo 'options zfs zfs_arc_max={int(mem_total_bytes * 0.5)}' > /etc/modprobe.d/zfs.conf && update-initramfs -u")
+
+                # ARC hit ratio (if available)
+                arc_stats = {}
+                for line in arc_stats_raw.split("\n"):
+                    parts = line.split()
+                    if len(parts) == 2:
+                        arc_stats[parts[0]] = int(parts[1]) if parts[1].isdigit() else 0
+
+                hits = arc_stats.get("hits", 0)
+                misses = arc_stats.get("misses", 0)
+                if hits + misses > 100:
+                    hit_ratio = round(hits / (hits + misses) * 100, 1)
+                    chk("ZFS", nn, f"ARC hit ratio ({hit_ratio}%)",
+                        hit_ratio >= 80,
+                        f"{hit_ratio}% (hits={hits}, misses={misses})",
+                        "Un ratio > 80% est bon. Si trop bas, augmenter zfs_arc_max",
+                        "Augmenter la taille ARC ou ajouter un L2ARC (SSD cache)")
+
+        except Exception:
+            pass  # SSH failed, skip ZFS checks silently
+
+        # ── VM-LEVEL CHECKS ──
+        vms = proxmox_api(host, f"/nodes/{nn}/qemu")
+        if not isinstance(vms, list):
+            continue
+
+        for vm in vms:
+            vmid = vm.get("vmid")
+            vname = vm.get("name", f"VM {vmid}")
+            target = f"{vname} ({vmid})"
+            cfg = proxmox_api(host, f"/nodes/{nn}/qemu/{vmid}/config")
+            if not isinstance(cfg, dict) or "error" in cfg:
+                continue
+
+            # Safe int conversion helper
+            def cfgi(key, default=0):
+                v = cfg.get(key, default)
+                try:
+                    return int(v)
+                except (ValueError, TypeError):
+                    return default
+
+            # CPU type
+            cpu_type = cfg.get("cpu", "kvm64")
+            is_good_cpu = cpu_type not in ("kvm64", "qemu64")
+            chk("VM CPU", target, "Type CPU optimise",
+                is_good_cpu, cpu_type,
+                "host (max perf) ou x86-64-v2-AES (compatible migration live)",
+                "VM > Hardware > Processors > Type: host")
+
+            # Nested virt on VM
+            cpu_str = str(cfg.get("cpu", ""))
+            vm_nested = "+vmx" in cpu_str or "host" in cpu_type
+            chk("VM CPU", target, "Nested virtualization",
+                True,  # informational
+                "Actif" if vm_nested else "Desactive",
+                "Necessaire uniquement si la VM doit heberger des VMs (Docker/KVM inside)",
+                "VM > Hardware > Processors > Type: host (expose toutes les instructions)")
+
+            # vCPU allocation
+            cores = cfgi("cores", 1)
+            sockets = cfgi("sockets", 1)
+            total_vcpu = cores * sockets
+            ratio = total_vcpu / max(cpu_info.get("cpus", 1), 1)
+            chk("VM CPU", target, f"Allocation vCPU ({total_vcpu} vCPU)",
+                total_vcpu <= cpu_info.get("cpus", 1),
+                f"{total_vcpu} vCPU ({cores}c x {sockets}s) / {cpu_info.get('cpus', '?')} cores hote",
+                "Ne pas depasser le nombre de cores physiques sauf si charge legere",
+                "VM > Hardware > Processors: ajuster cores/sockets")
+
+            # CPU limit/affinity
+            cpulimit = cfgi("cpulimit", 0)
+            chk("VM CPU", target, "CPU limit defini",
+                cpulimit > 0 if total_vcpu > 2 else True,
+                f"cpulimit={cpulimit}" if cpulimit else "Pas de limite",
+                "Definir cpulimit evite qu'une VM monopolise le CPU",
+                "VM > Hardware > Processors > CPU limit (ex: 2.0 pour 200%)")
+
+            # NUMA
+            numa = cfgi("numa", 0)
+            chk("VM CPU", target, "NUMA",
+                bool(numa) if sockets > 1 or total_vcpu >= 4 else True,
+                "Actif" if numa else "Desactive",
+                "Activer NUMA pour VMs multi-socket ou >= 4 vCPU",
+                "VM > Hardware > Processors > Enable NUMA")
+
+            # Memory ballooning
+            balloon = cfg.get("balloon", None)
+            if balloon is not None:
+                try:
+                    balloon = int(balloon)
+                except (ValueError, TypeError):
+                    balloon = None
+            mem_mb = cfgi("memory", 0)
+            chk("VM Memoire", target, f"RAM ({mem_mb} MB)",
+                mem_mb >= 512, f"{mem_mb} MB",
+                "Adapter selon le role de la VM",
+                "VM > Hardware > Memory")
+
+            if balloon is not None and balloon == 0 and mem_mb > 2048:
+                chk("VM Memoire", target, "Ballooning",
+                    False, "Desactive",
+                    "Activer pour recuperer la RAM inutilisee",
+                    "VM > Hardware > Memory > Ballooning: cocher, Minimum: 512 MB")
+            elif balloon is None or balloon != 0:
+                chk("VM Memoire", target, "Ballooning",
+                    True, "Actif",
+                    "OK - permet la recuperation dynamique de RAM",
+                    "")
+
+            # SCSI controller
+            scsihw = cfg.get("scsihw", "")
+            chk("VM Disque", target, "Controleur SCSI",
+                scsihw == "virtio-scsi-single",
+                scsihw or "defaut (lsi)",
+                "virtio-scsi-single (meilleure performance I/O)",
+                "VM > Hardware > ajouter disque > SCSI Controller: VirtIO SCSI Single")
+
+            # Disk optimizations
+            for key, val in cfg.items():
+                if not isinstance(val, str) or ":" not in val:
+                    continue
+                if not any(key.startswith(p) for p in ("scsi", "virtio", "ide", "sata")):
+                    continue
+                if "media=cdrom" in val:
+                    continue
+
+                # iothread
+                has_iothread = "iothread=1" in val
+                chk("VM Disque", target, f"{key}: iothread",
+                    has_iothread, "Actif" if has_iothread else "Desactive",
+                    "iothread=1 dedie un thread I/O par disque (necessite virtio-scsi-single)",
+                    f"VM > Hardware > {key} > Advanced > IO Thread: cocher")
+
+                # discard/TRIM
+                has_discard = "discard=on" in val
+                chk("VM Disque", target, f"{key}: TRIM/Discard",
+                    has_discard, "Actif" if has_discard else "Desactive",
+                    "Recupere l'espace libere (essentiel avec LVM-thin/ZFS)",
+                    f"VM > Hardware > {key} > Advanced > Discard: cocher")
+
+                # cache
+                has_cache = "cache=" in val
+                cache_type = ""
+                if has_cache:
+                    for p in val.split(","):
+                        if p.startswith("cache="):
+                            cache_type = p.split("=")[1]
+                chk("VM Disque", target, f"{key}: cache",
+                    not has_cache or cache_type in ("none", "writethrough", ""),
+                    f"cache={cache_type}" if has_cache else "none (defaut)",
+                    "none ou writethrough recommande (writeback risque de perte)",
+                    f"VM > Hardware > {key} > Advanced > Cache: None")
+
+                # interface type
+                is_ide = key.startswith("ide") or key.startswith("sata")
+                if is_ide:
+                    chk("VM Disque", target, f"{key}: interface",
+                        False, key.split(":")[0],
+                        "Utiliser scsi (VirtIO) au lieu de ide/sata pour les performances",
+                        "Migrer le disque vers une interface scsi")
+
+            # Network
+            for key, val in cfg.items():
+                if key.startswith("net") and isinstance(val, str):
+                    is_virtio = "virtio" in val.lower()
+                    chk("VM Reseau", target, f"{key}: modele VirtIO",
+                        is_virtio, "VirtIO" if is_virtio else "e1000/rtl8139",
+                        "VirtIO offre les meilleures performances reseau",
+                        f"VM > Hardware > {key} > Model: VirtIO")
+
+                    has_queues = "queues=" in val
+                    if is_virtio and total_vcpu > 1:
+                        chk("VM Reseau", target, f"{key}: multi-queue",
+                            has_queues, "Actif" if has_queues else "Desactive",
+                            f"Multi-queue permet de repartir le trafic sur {total_vcpu} vCPU",
+                            f"VM > Hardware > {key} > Multiqueue: {min(total_vcpu, 8)}")
+
+            # BIOS
+            bios = cfg.get("bios", "seabios")
+            chk("VM Systeme", target, "BIOS UEFI (OVMF)",
+                bios == "ovmf", bios,
+                "OVMF (UEFI) recommande pour OS modernes et Secure Boot",
+                "VM > Hardware > BIOS: OVMF. Necessite un disque EFI.")
+
+            # Machine type
+            machine = cfg.get("machine", "")
+            is_q35 = "q35" in str(machine)
+            chk("VM Systeme", target, "Chipset Q35",
+                is_q35, machine or "i440fx (defaut)",
+                "Q35 supporte PCIe natif, IOMMU, meilleures performances",
+                "VM > Hardware > Machine: q35")
+
+            # Guest agent
+            agent = cfg.get("agent", "")
+            chk("VM Systeme", target, "QEMU Guest Agent",
+                bool(agent) and str(agent) != "0",
+                "Actif" if agent and str(agent) != "0" else "Desactive",
+                "Shutdown propre, freeze FS, affichage IP",
+                "VM > Options > QEMU Guest Agent: Enable. Installer qemu-guest-agent dans la VM.")
+
+        # ── CT CHECKS ──
+        cts = proxmox_api(host, f"/nodes/{nn}/lxc")
+        if isinstance(cts, list):
+            for ct in cts:
+                ctid = ct.get("vmid")
+                ctname = ct.get("name", f"CT {ctid}")
+                target = f"{ctname} ({ctid})"
+                ct_cfg = proxmox_api(host, f"/nodes/{nn}/lxc/{ctid}/config")
+                if not isinstance(ct_cfg, dict) or "error" in ct_cfg:
+                    continue
+
+                # Unprivileged
+                chk("CT Securite", target, "Container non-privilegie",
+                    bool(ct_cfg.get("unprivileged")),
+                    "Non-privilegie" if ct_cfg.get("unprivileged") else "Privilegie",
+                    "Les containers non-privilegies sont plus securises",
+                    "Recreer le container en cochant 'Unprivileged'")
+
+                # Nesting
+                features = str(ct_cfg.get("features", ""))
+                chk("CT", target, "Nesting",
+                    True,
+                    "Actif" if "nesting=1" in features else "Desactive",
+                    "Necessaire pour Docker dans un container LXC",
+                    "CT > Options > Features: nesting=1")
+
+    return jsonify(checks)
+
+
+# ── Performance detaillee ───────────────────────────────────────────────────
+
+@app.route("/api/performance")
+def api_performance():
+    """Metrics de performance detaillees pour tous les noeuds et VMs."""
+    host, ticket, _ = get_ticket()
+    if not host:
+        return jsonify({"error": "Non connecte"}), 503
+
+    result = {"nodes": [], "cluster_totals": {}}
+    total_cpu_cap = 0
+    total_cpu_used = 0
+    total_mem = 0
+    total_mem_used = 0
+    total_vcpu_alloc = 0
+
+    nodes_list = proxmox_api(host, "/nodes")
+    if not isinstance(nodes_list, list):
+        return jsonify(result)
+
+    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+        nn = node.get("node", "")
+        if node.get("status") != "online":
+            continue
+
+        ns = proxmox_api(host, f"/nodes/{nn}/status")
+        if not isinstance(ns, dict) or "error" in ns:
+            continue
+
+        cpu_info = ns.get("cpuinfo", {})
+        memory = ns.get("memory", {})
+        swap = ns.get("swap", {})
+        cores = cpu_info.get("cpus", 0)
+        cpu_usage = round(ns.get("cpu", 0) * 100, 1)
+        mem_total = memory.get("total", 0)
+        mem_used = memory.get("used", 0)
+        mem_avail = memory.get("available", 0)
+
+        total_cpu_cap += cores
+        total_cpu_used += (cpu_usage / 100) * cores
+        total_mem += mem_total
+        total_mem_used += mem_used
+
+        # RRD hour data for history
+        rrd = proxmox_api(host, f"/nodes/{nn}/rrddata?timeframe=hour")
+        rrd_day = proxmox_api(host, f"/nodes/{nn}/rrddata?timeframe=day")
+        history = []
+        if isinstance(rrd, list):
+            for e in rrd[-30:]:
+                history.append({
+                    "time": e.get("time", 0),
+                    "cpu": round(e.get("cpu", 0) * 100, 1),
+                    "mem": round(e.get("memused", 0) / max(e.get("memtotal", 1), 1) * 100, 1),
+                    "io": round(e.get("iowait", 0) * 100, 2),
+                    "load": round(e.get("loadavg", 0), 2),
+                    "netin": round(e.get("netin", 0)),
+                    "netout": round(e.get("netout", 0)),
+                })
+
+        # Day averages
+        day_avg = {"cpu": 0, "mem": 0, "io": 0, "load": 0}
+        if isinstance(rrd_day, list) and rrd_day:
+            cpu_vals = [e.get("cpu", 0) for e in rrd_day if e.get("cpu") is not None]
+            mem_vals = [e.get("memused", 0) / max(e.get("memtotal", 1), 1) for e in rrd_day if e.get("memtotal")]
+            io_vals = [e.get("iowait", 0) for e in rrd_day if e.get("iowait") is not None]
+            load_vals = [e.get("loadavg", 0) for e in rrd_day if e.get("loadavg") is not None]
+            if cpu_vals:
+                day_avg["cpu"] = round(sum(cpu_vals) / len(cpu_vals) * 100, 1)
+            if mem_vals:
+                day_avg["mem"] = round(sum(mem_vals) / len(mem_vals) * 100, 1)
+            if io_vals:
+                day_avg["io"] = round(sum(io_vals) / len(io_vals) * 100, 2)
+            if load_vals:
+                day_avg["load"] = round(sum(load_vals) / len(load_vals), 2)
+
+        # PSI from latest RRD
+        psi = {}
+        if isinstance(rrd, list) and rrd:
+            last = rrd[-1]
+            psi = {
+                "cpu_some": round(last.get("pressurecpusome", 0) * 100, 2),
+                "mem_some": round(last.get("pressurememorysome", 0) * 100, 2),
+                "mem_full": round(last.get("pressurememoryfull", 0) * 100, 2),
+                "io_some": round(last.get("pressureiosome", 0) * 100, 2),
+                "io_full": round(last.get("pressureiofull", 0) * 100, 2),
+            }
+
+        # VM resource allocation
+        vcpu_total = 0
+        mem_alloc = 0
+        vm_perfs = []
+        vms = proxmox_api(host, f"/nodes/{nn}/qemu")
+        if isinstance(vms, list):
+            for vm in vms:
+                if vm.get("status") != "running":
+                    continue
+                vm_vcpu = vm.get("cpus", vm.get("maxcpu", 0))
+                vm_mem = vm.get("maxmem", 0)
+                vcpu_total += vm_vcpu
+                mem_alloc += vm_mem
+                vm_perfs.append({
+                    "vmid": vm.get("vmid"),
+                    "name": vm.get("name", ""),
+                    "cpu": round(vm.get("cpu", 0) * 100, 1),
+                    "vcpu": vm_vcpu,
+                    "mem_used": fmt_bytes(vm.get("mem", 0)),
+                    "mem_max": fmt_bytes(vm_mem),
+                    "mem_pct": round(vm.get("mem", 0) / max(vm_mem, 1) * 100, 1),
+                    "diskread": fmt_bytes(vm.get("diskread", 0)),
+                    "diskwrite": fmt_bytes(vm.get("diskwrite", 0)),
+                    "netin": fmt_bytes(vm.get("netin", 0)),
+                    "netout": fmt_bytes(vm.get("netout", 0)),
+                })
+
+        total_vcpu_alloc += vcpu_total
+
+        cts = proxmox_api(host, f"/nodes/{nn}/lxc")
+        if isinstance(cts, list):
+            for ct in cts:
+                if ct.get("status") != "running":
+                    continue
+                vcpu_total += ct.get("cpus", ct.get("maxcpu", 0))
+                mem_alloc += ct.get("maxmem", 0)
+
+        node_data = {
+            "name": nn,
+            "cpu_cores": cores,
+            "cpu_model": cpu_info.get("model", ""),
+            "cpu_mhz": cpu_info.get("mhz", ""),
+            "cpu_usage": cpu_usage,
+            "cpu_free": round(100 - cpu_usage, 1),
+            "mem_total": fmt_bytes(mem_total),
+            "mem_used": fmt_bytes(mem_used),
+            "mem_avail": fmt_bytes(mem_avail),
+            "mem_pct": round(mem_used / max(mem_total, 1) * 100, 1),
+            "swap_used": fmt_bytes(swap.get("used", 0)),
+            "swap_pct": round(swap.get("used", 0) / max(swap.get("total", 1), 1) * 100, 1),
+            "loadavg": ns.get("loadavg", ["0", "0", "0"]),
+            "iowait": round(ns.get("wait", 0) * 100, 2),
+            "vcpu_allocated": vcpu_total,
+            "vcpu_ratio": round(vcpu_total / max(cores, 1), 1),
+            "mem_allocated": fmt_bytes(mem_alloc),
+            "mem_alloc_pct": round(mem_alloc / max(mem_total, 1) * 100, 1),
+            "psi": psi,
+            "day_avg": day_avg,
+            "history": history,
+            "vm_perfs": vm_perfs,
+        }
+        result["nodes"].append(node_data)
+
+    result["cluster_totals"] = {
+        "cpu_cores": total_cpu_cap,
+        "cpu_used_cores": round(total_cpu_used, 1),
+        "cpu_pct": round(total_cpu_used / max(total_cpu_cap, 1) * 100, 1),
+        "vcpu_allocated": total_vcpu_alloc,
+        "vcpu_ratio": round(total_vcpu_alloc / max(total_cpu_cap, 1), 1),
+        "mem_total": fmt_bytes(total_mem),
+        "mem_used": fmt_bytes(total_mem_used),
+        "mem_pct": round(total_mem_used / max(total_mem, 1) * 100, 1),
+    }
+
+    return jsonify(result)
+
+
+# ── Benchmarks ──────────────────────────────────────────────────────────────
+
+def ssh_exec(host, cmd, timeout=30):
+    """Execute une commande SSH et retourne stdout."""
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(host, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                password=PROXMOX_CLUSTER["password"], timeout=10)
+    _, stdout, stderr = ssh.exec_command(cmd, timeout=timeout)
+    out = stdout.read().decode("utf-8", errors="replace")
+    err = stderr.read().decode("utf-8", errors="replace")
+    ssh.close()
+    return out, err
+
+
+@app.route("/api/benchmark", methods=["POST"])
+def api_benchmark():
+    """Lance un benchmark sur un noeud Proxmox via SSH."""
+    data = flask_request.get_json()
+    if not data:
+        return jsonify({"error": "Donnees manquantes"}), 400
+
+    node_ip = data.get("node_ip", "").strip()
+    bench_type = data.get("type", "").strip()
+    node_name = data.get("node_name", node_ip)
+
+    if not node_ip or not bench_type:
+        return jsonify({"error": "IP et type de benchmark requis"}), 400
+
+    result = {"node": node_name, "ip": node_ip, "type": bench_type, "results": [], "raw": ""}
+
+    try:
+        if bench_type == "pveperf":
+            out, err = ssh_exec(node_ip, "pveperf 2>&1", timeout=60)
+            result["raw"] = out
+            for line in out.strip().split("\n"):
+                line = line.strip()
+                if ":" in line:
+                    parts = line.split(":", 1)
+                    key = parts[0].strip()
+                    val = parts[1].strip()
+                    rating = "good"
+                    if "BOGOMIPS" in key:
+                        try:
+                            v = float(val.split()[0])
+                            rating = "good" if v > 10000 else "warn" if v > 5000 else "bad"
+                        except ValueError:
+                            pass
+                    elif "REGEX" in key:
+                        try:
+                            v = float(val.split()[0])
+                            rating = "good" if v > 1000000 else "warn" if v > 500000 else "bad"
+                        except ValueError:
+                            pass
+                    elif "DNS" in key:
+                        try:
+                            v = float(val.split()[0])
+                            rating = "good" if v < 20 else "warn" if v < 50 else "bad"
+                        except ValueError:
+                            pass
+                    elif "READ" in key or "WRITE" in key:
+                        try:
+                            v = float(val.split()[0])
+                            rating = "good" if v > 200 else "warn" if v > 50 else "bad"
+                        except ValueError:
+                            pass
+                    result["results"].append({"name": key, "value": val, "rating": rating})
+
+        elif bench_type == "cpu":
+            out, err = ssh_exec(node_ip,
+                "openssl speed -seconds 3 -evp aes-256-cbc 2>&1", timeout=30)
+            result["raw"] = out
+            for line in out.strip().split("\n"):
+                if "aes-256-cbc" in line.lower() and "bytes" not in line.lower():
+                    parts = line.split()
+                    if len(parts) >= 7:
+                        result["results"].append({"name": "AES-256-CBC 16B", "value": parts[1], "rating": "info"})
+                        result["results"].append({"name": "AES-256-CBC 1KB", "value": parts[4], "rating": "info"})
+                        result["results"].append({"name": "AES-256-CBC 16KB", "value": parts[6], "rating": "info"})
+
+            # Also get CPU single-thread perf
+            out2, _ = ssh_exec(node_ip,
+                "openssl speed -seconds 3 -evp sha256 2>&1", timeout=30)
+            result["raw"] += "\n" + out2
+            for line in out2.strip().split("\n"):
+                if "sha256" in line.lower() and "bytes" not in line.lower():
+                    parts = line.split()
+                    if len(parts) >= 7:
+                        result["results"].append({"name": "SHA-256 16KB", "value": parts[6], "rating": "info"})
+
+        elif bench_type == "disk_write":
+            # Sequential write 256MB
+            out, err = ssh_exec(node_ip,
+                "dd if=/dev/zero of=/tmp/_bench_write bs=1M count=256 oflag=direct 2>&1 && rm -f /tmp/_bench_write",
+                timeout=60)
+            result["raw"] = out + err
+            # Parse dd output: "256+0 records out ... 268 MB/s"
+            combined = out + err
+            for line in combined.split("\n"):
+                if "copied" in line or "MB/s" in line or "GB/s" in line:
+                    result["results"].append({"name": "Ecriture sequentielle 256MB",
+                                             "value": line.strip(), "rating": "info"})
+                    # Extract speed
+                    import re
+                    m = re.search(r'([\d.]+)\s*(MB|GB)/s', line)
+                    if m:
+                        speed = float(m.group(1))
+                        if m.group(2) == "GB":
+                            speed *= 1024
+                        rating = "good" if speed > 200 else "warn" if speed > 50 else "bad"
+                        result["results"].append({"name": "Debit ecriture", "value": f"{speed:.0f} MB/s",
+                                                 "rating": rating})
+
+        elif bench_type == "disk_read":
+            # Sequential read (from cache, gives max throughput)
+            ssh_exec(node_ip, "dd if=/dev/zero of=/tmp/_bench_read bs=1M count=256 oflag=direct 2>&1", timeout=60)
+            out, err = ssh_exec(node_ip,
+                "dd if=/tmp/_bench_read of=/dev/null bs=1M count=256 iflag=direct 2>&1 && rm -f /tmp/_bench_read",
+                timeout=60)
+            result["raw"] = out + err
+            combined = out + err
+            for line in combined.split("\n"):
+                if "copied" in line or "MB/s" in line or "GB/s" in line:
+                    result["results"].append({"name": "Lecture sequentielle 256MB",
+                                             "value": line.strip(), "rating": "info"})
+                    import re
+                    m = re.search(r'([\d.]+)\s*(MB|GB)/s', line)
+                    if m:
+                        speed = float(m.group(1))
+                        if m.group(2) == "GB":
+                            speed *= 1024
+                        rating = "good" if speed > 200 else "warn" if speed > 50 else "bad"
+                        result["results"].append({"name": "Debit lecture", "value": f"{speed:.0f} MB/s",
+                                                 "rating": rating})
+
+        elif bench_type == "network":
+            # Ping latency between all nodes
+            for target_host in PROXMOX_CLUSTER["hosts"]:
+                if target_host == node_ip:
+                    continue
+                out, err = ssh_exec(node_ip, f"ping -c 5 -q {target_host} 2>&1", timeout=15)
+                result["raw"] += out + "\n"
+                for line in out.split("\n"):
+                    if "avg" in line:
+                        # rtt min/avg/max/mdev
+                        import re
+                        m = re.search(r'([\d.]+)/([\d.]+)/([\d.]+)/([\d.]+)', line)
+                        if m:
+                            avg = float(m.group(2))
+                            rating = "good" if avg < 1 else "warn" if avg < 5 else "bad"
+                            result["results"].append({
+                                "name": f"Latence vers {target_host}",
+                                "value": f"min={m.group(1)}ms avg={m.group(2)}ms max={m.group(3)}ms",
+                                "rating": rating,
+                            })
+                    elif "packet loss" in line:
+                        import re
+                        m = re.search(r'(\d+)% packet loss', line)
+                        if m:
+                            loss = int(m.group(1))
+                            if loss > 0:
+                                result["results"].append({
+                                    "name": f"Perte paquets vers {target_host}",
+                                    "value": f"{loss}%",
+                                    "rating": "bad" if loss > 1 else "warn",
+                                })
+
+        elif bench_type == "memory":
+            # Memory bandwidth via dd
+            out, err = ssh_exec(node_ip,
+                "dd if=/dev/zero of=/dev/null bs=1M count=4096 2>&1", timeout=30)
+            result["raw"] = out + err
+            combined = out + err
+            for line in combined.split("\n"):
+                if "copied" in line or "GB/s" in line or "MB/s" in line:
+                    result["results"].append({"name": "Bande passante memoire",
+                                             "value": line.strip(), "rating": "info"})
+                    import re
+                    m = re.search(r'([\d.]+)\s*(MB|GB)/s', line)
+                    if m:
+                        speed = float(m.group(1))
+                        if m.group(2) == "GB":
+                            speed *= 1024
+                        rating = "good" if speed > 5000 else "warn" if speed > 2000 else "bad"
+                        result["results"].append({"name": "Debit memoire", "value": f"{speed:.0f} MB/s",
+                                                 "rating": rating})
+
+        else:
+            return jsonify({"error": f"Type de benchmark inconnu: {bench_type}"}), 400
+
+        return jsonify(result)
+
+    except paramiko.AuthenticationException:
+        return jsonify({"error": "Authentification SSH echouee"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e), "results": result.get("results", [])}), 500
+
+
 # ── Installation Agent QEMU via SSH ─────────────────────────────────────────
 
 @app.route("/api/install-agent", methods=["POST"])

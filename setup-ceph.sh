@@ -277,21 +277,44 @@ if [ "$ROLE" = "join" ]; then
     fi
 
     # MON (bootstrap via monmap du cluster)
-    whiptail --title "$T" --backtitle "$BT" --infobox "Bootstrap MON sur $HN (30 sec)..." 6 50
+    whiptail --title "$T" --backtitle "$BT" --infobox "Bootstrap MON sur $HN (60 sec)..." 6 50
     systemctl stop ceph-mon@$HN &>/dev/null
-    rm -rf /var/lib/ceph/mon/ceph-$HN; mkdir -p /var/lib/ceph/mon/ceph-$HN
+    rm -rf /var/lib/ceph/mon/ceph-$HN
+    mkdir -p /var/lib/ceph/mon/ceph-$HN
 
-    ceph mon getmap -o /tmp/monmap.bin &>/dev/null
-    ceph-mon --mkfs -i "$HN" --monmap /tmp/monmap.bin --keyring /etc/ceph/ceph.client.admin.keyring &>/dev/null 2>&1
-    chown -R ceph:www-data /var/lib/ceph/mon/ceph-$HN
+    # Recuperer monmap du cluster
+    GETMAP_OUT=$(ceph mon getmap -o /tmp/monmap.bin 2>&1)
+    if [ ! -f /tmp/monmap.bin ]; then
+        whiptail --title "$T" --backtitle "$BT" --msgbox "Echec ceph mon getmap.\n\n$GETMAP_OUT\n\nVerifiez que le cluster est actif sur le premier noeud." 14 55
+    else
+        # Creer un keyring MON avec les bons caps
+        ceph auth get mon. -o /tmp/ceph.mon.keyring 2>/dev/null
+        if [ ! -f /tmp/ceph.mon.keyring ]; then
+            # Fallback : creer manuellement
+            ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *' 2>/dev/null
+        fi
+        # Importer le keyring admin dans le keyring MON
+        ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring 2>/dev/null
+        chmod 600 /tmp/ceph.mon.keyring
 
-    systemctl enable ceph-mon@$HN &>/dev/null
-    for i in 1 2 3 4; do
-        systemctl reset-failed ceph-mon@$HN &>/dev/null
-        systemctl start ceph-mon@$HN &>/dev/null
-        sleep 15
-        systemctl is-active ceph-mon@$HN &>/dev/null && break
-    done
+        # mkfs du MON avec le bon keyring
+        MKFS_OUT=$(ceph-mon --mkfs -i "$HN" --monmap /tmp/monmap.bin --keyring /tmp/ceph.mon.keyring 2>&1)
+        chown -R ceph:www-data /var/lib/ceph/mon/ceph-$HN
+
+        # Verifier que le datadir n'est pas vide
+        if [ ! -f /var/lib/ceph/mon/ceph-$HN/kv_backend ]; then
+            whiptail --title "$T" --backtitle "$BT" --msgbox "mkfs MON echoue.\n\n$MKFS_OUT" 12 55
+        else
+            # Demarrer avec retry (attente longue pour nested)
+            systemctl enable ceph-mon@$HN &>/dev/null
+            for i in 1 2 3 4; do
+                systemctl reset-failed ceph-mon@$HN &>/dev/null
+                systemctl start ceph-mon@$HN &>/dev/null
+                sleep 20
+                systemctl is-active ceph-mon@$HN &>/dev/null && break
+            done
+        fi
+    fi
 
     if systemctl is-active ceph-mon@$HN &>/dev/null; then
         whiptail --title "$T" --backtitle "$BT" --msgbox "MON actif sur $HN !" 8 35
@@ -372,27 +395,39 @@ pour eviter le rollback automatique." 14 50
                     sleep 5
 
                     # Prepare (sans start - evite rollback)
-                    ceph-volume lvm prepare --data "$DISK" &>/dev/null 2>&1
+                    PREP_OUT=$(ceph-volume lvm prepare --data "$DISK" 2>&1)
+                    PREP_RET=$?
+                    if [ $PREP_RET -ne 0 ]; then
+                        whiptail --title "$T" --backtitle "$BT" --msgbox "Prepare echoue sur $DISK\n\n$(echo "$PREP_OUT" | tail -5)" 14 55
+                        continue
+                    fi
 
-                    # Activate
-                    sleep 3
-                    ceph-volume lvm activate --all &>/dev/null 2>&1
+                    # Attendre que le prepare soit termine
                     sleep 5
 
-                    # Start avec retry
+                    # Activate (peut echouer au premier start, c'est normal)
+                    ceph-volume lvm activate --all 2>/dev/null
+                    sleep 8
+
+                    # Trouver l'OSD ID
                     OSD_ID=$(ls /var/lib/ceph/osd/ 2>/dev/null | tail -1 | sed 's/ceph-//')
-                    if [ -n "$OSD_ID" ]; then
-                        for i in 1 2 3; do
-                            systemctl reset-failed ceph-osd@$OSD_ID &>/dev/null
-                            systemctl start ceph-osd@$OSD_ID &>/dev/null
-                            sleep 8
-                            systemctl is-active ceph-osd@$OSD_ID &>/dev/null && break
-                        done
-                        if systemctl is-active ceph-osd@$OSD_ID &>/dev/null; then
-                            whiptail --title "$T" --backtitle "$BT" --msgbox "OSD.$OSD_ID actif sur $DISK !" 8 40
-                        else
-                            whiptail --title "$T" --backtitle "$BT" --msgbox "OSD.$OSD_ID echoue sur $DISK" 8 40
-                        fi
+                    if [ -z "$OSD_ID" ]; then
+                        whiptail --title "$T" --backtitle "$BT" --msgbox "OSD non trouve apres prepare.\nVerifiez: ceph-volume lvm list" 10 50
+                        continue
+                    fi
+
+                    # Start avec retry (le premier start echoue toujours en nested)
+                    for i in 1 2 3 4; do
+                        systemctl reset-failed ceph-osd@$OSD_ID 2>/dev/null
+                        systemctl start ceph-osd@$OSD_ID 2>/dev/null
+                        sleep 10
+                        systemctl is-active ceph-osd@$OSD_ID &>/dev/null && break
+                    done
+
+                    if systemctl is-active ceph-osd@$OSD_ID &>/dev/null; then
+                        whiptail --title "$T" --backtitle "$BT" --msgbox "OSD.$OSD_ID actif sur $DISK !" 8 40
+                    else
+                        whiptail --title "$T" --backtitle "$BT" --msgbox "OSD.$OSD_ID echoue.\n\nEssayez manuellement:\n  systemctl reset-failed ceph-osd@$OSD_ID\n  systemctl start ceph-osd@$OSD_ID" 12 55
                     fi
                 done
             fi

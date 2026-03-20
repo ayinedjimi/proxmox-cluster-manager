@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ceph Wizard - Cluster Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root{--bg:#f0f2f5;--card:#fff;--hover:#f8f9fb;--border:#e2e8f0;--text:#0f172a;--text2:#475569;--text3:#94a3b8;--accent:#2563eb;--accent2:#4f46e5;--green:#16a34a;--green-bg:#dcfce7;--yellow:#d97706;--yellow-bg:#fef3c7;--red:#dc2626;--red-bg:#fee2e2;--sh:0 1px 3px rgba(0,0,0,.06);}
+        *{margin:0;padding:0;box-sizing:border-box;}
+        body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+        /* Header */
+        .header{background:#fff;padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;box-shadow:var(--sh);}
+        .header-icon{width:36px;height:36px;background:linear-gradient(135deg,#ef4444,#f97316);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;}
+        .header h1{font-size:1rem;font-weight:700;}.header span{font-size:.65rem;color:var(--text3);}
+        .header a{margin-left:auto;font-size:.75rem;color:var(--accent);text-decoration:none;}
+
+        /* Stepper */
+        .stepper{display:flex;gap:0;padding:20px 24px;background:#fff;margin:16px 24px;border-radius:12px;border:1px solid var(--border);box-shadow:var(--sh);overflow-x:auto;}
+        .step{flex:1;text-align:center;padding:10px 8px;position:relative;min-width:100px;}
+        .step::after{content:'';position:absolute;top:18px;right:-50%;width:100%;height:2px;background:var(--border);z-index:0;}
+        .step:last-child::after{display:none;}
+        .step-num{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;border:2px solid var(--border);background:#fff;color:var(--text3);position:relative;z-index:1;margin-bottom:4px;}
+        .step.active .step-num{border-color:var(--accent);background:var(--accent);color:#fff;}
+        .step.done .step-num{border-color:var(--green);background:var(--green);color:#fff;}
+        .step.done::after{background:var(--green);}
+        .step.active::after{background:var(--accent);}
+        .step-label{font-size:.62rem;color:var(--text3);}.step.active .step-label{color:var(--accent);font-weight:600;}.step.done .step-label{color:var(--green);}
+
+        /* Content */
+        .content{margin:0 24px 24px;background:#fff;border-radius:12px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;}
+        .content-header{padding:18px 24px;border-bottom:1px solid var(--border);background:var(--hover);}
+        .content-header h2{font-size:.95rem;font-weight:700;}.content-header p{font-size:.72rem;color:var(--text2);margin-top:4px;}
+        .content-body{padding:20px 24px;}
+
+        /* Cards */
+        .node-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-bottom:16px;}
+        .ncard{border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:var(--sh);}
+        .ncard.ok{border-left:4px solid var(--green);}.ncard.warn{border-left:4px solid var(--yellow);}.ncard.err{border-left:4px solid var(--red);}
+        .ncard-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+        .ncard-name{font-size:.85rem;font-weight:600;}.ncard-ip{font-size:.65rem;color:var(--text3);font-family:monospace;}
+        .ncard-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;font-size:.7rem;}
+        .ncard-stat{padding:4px 8px;background:var(--bg);border-radius:5px;}
+        .ncard-stat b{color:var(--text);}
+
+        /* Checks */
+        .checks{margin:16px 0;}
+        .check{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.75rem;border-bottom:1px solid rgba(0,0,0,.04);}
+        .check:last-child{border:none;}
+        .check-icon{font-size:14px;flex-shrink:0;}
+
+        /* Disks */
+        .disk-table{width:100%;border-collapse:collapse;font-size:.72rem;margin:10px 0;}
+        .disk-table th{text-align:left;padding:6px 8px;background:var(--bg);font-size:.62rem;text-transform:uppercase;color:var(--text3);}
+        .disk-table td{padding:8px;border-top:1px solid var(--border);}
+        .disk-table tr:hover{background:var(--hover);}
+        .disk-check{width:16px;height:16px;cursor:pointer;}
+
+        /* Config form */
+        .form-group{margin-bottom:14px;}
+        .form-group label{display:block;font-size:.72rem;font-weight:600;color:var(--text2);margin-bottom:4px;}
+        .form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:.78rem;}
+        .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+        .form-help{font-size:.62rem;color:var(--text3);margin-top:2px;}
+
+        /* Templates */
+        .templates{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:14px 0;}
+        .tpl{padding:14px;border:2px solid var(--border);border-radius:10px;cursor:pointer;transition:all .2s;}
+        .tpl:hover{border-color:var(--accent);background:#eff6ff;}
+        .tpl.selected{border-color:var(--accent);background:#eff6ff;}
+        .tpl-name{font-size:.82rem;font-weight:700;margin-bottom:4px;}
+        .tpl-desc{font-size:.65rem;color:var(--text2);}
+        .tpl-specs{font-size:.6rem;color:var(--text3);margin-top:6px;}
+
+        /* Log */
+        .log{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px;font-family:monospace;font-size:.68rem;max-height:400px;overflow-y:auto;line-height:1.7;}
+        .log .ok{color:#22c55e;}.log .err{color:#ef4444;}.log .warn{color:#f59e0b;}.log .info{color:#38bdf8;}
+        .log .sep{color:#475569;border-top:1px solid #334155;margin:6px 0;padding-top:6px;}
+
+        /* Buttons */
+        .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+        .btn{padding:8px 20px;border-radius:8px;border:none;font-family:inherit;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .2s;}
+        .btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{background:#1d4ed8;}
+        .btn-secondary{background:var(--bg);color:var(--text2);border:1px solid var(--border);}.btn-secondary:hover{background:var(--hover);}
+        .btn-danger{background:var(--red);color:#fff;}.btn-danger:hover{background:#b91c1c;}
+        .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+        /* Alert */
+        .alert{padding:12px 16px;border-radius:8px;font-size:.75rem;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+        .alert-ok{background:var(--green-bg);color:#166534;border:1px solid #86efac;}
+        .alert-warn{background:var(--yellow-bg);color:#92400e;border:1px solid #fde68a;}
+        .alert-err{background:var(--red-bg);color:#991b1b;border:1px solid #fca5a5;}
+
+        /* Progress */
+        .progress{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin:10px 0;}
+        .progress-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .5s;}
+
+        /* Toast */
+        .toast-container{position:fixed;top:20px;right:20px;z-index:1000;display:flex;flex-direction:column;gap:8px;}
+        .toast{padding:12px 18px;border-radius:10px;font-size:.78rem;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.15);animation:toastIn .3s ease;display:flex;align-items:center;gap:8px;min-width:280px;}
+        .toast-ok{background:#166534;color:#fff;}.toast-err{background:#991b1b;color:#fff;}.toast-info{background:#1d4ed8;color:#fff;}
+        @keyframes toastIn{from{opacity:0;transform:translateX(100px)}to{opacity:1;transform:translateX(0)}}
+        @keyframes toastOut{from{opacity:1}to{opacity:0;transform:translateY(-20px)}}
+
+        .loading{text-align:center;padding:40px;color:var(--text3);}
+        .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px;}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        footer{text-align:center;padding:16px;font-size:.63rem;color:var(--text3);}footer b{color:var(--text2);}
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="header-icon">C</div>
+    <div><h1>Ceph Wizard</h1><span>Ayi NEDJIMI Consultants</span></div>
+    <a href="/">< Retour au Cluster Manager</a>
+    <button class="btn btn-danger" onclick="if(confirm('PURGER tout Ceph sur tous les noeuds ?\\nCette action est IRREVERSIBLE !'))purgeCeph()" style="font-size:.65rem;padding:4px 10px;margin-left:8px">\u{1F5D1} Purger Ceph</button>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+<div class="stepper" id="stepper"></div>
+<div class="content" id="content">
+    <div class="loading"><div class="spinner"></div>Scan du cluster en cours...</div>
+</div>
+
+<footer>&copy; 2026 <b>Ayi NEDJIMI Consultants</b> - Ceph Wizard</footer>
+
+<script>
+const STEPS = [
+    {id:'scan', label:'Detection', icon:'1'},
+    {id:'template', label:'Profil', icon:'2'},
+    {id:'network', label:'Reseau', icon:'3'},
+    {id:'install', label:'Installation', icon:'4'},
+    {id:'mon_mgr', label:'MON/MGR', icon:'5'},
+    {id:'osd', label:'OSD', icon:'6'},
+    {id:'pool', label:'Pool', icon:'7'},
+    {id:'verify', label:'Final', icon:'8'},
+];
+
+let currentStep = 0;
+let scanData = null;
+let wizConfig = {
+    template: 'lab',
+    public_network: '192.168.100.0/24',
+    cluster_network: '',
+    selected_nodes: [],
+    osd_map: {},
+    pool_name: 'ceph-vm',
+    pg_num: 64,
+    replication_size: 3,
+    min_size: 2,
+    ceph_version: 'squid',
+};
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+function infoCard(icon,title,text,type){
+    const themes={
+        info:{bg:'linear-gradient(135deg,#eff6ff,#dbeafe)',border:'#93c5fd',title:'#1d4ed8',iconBg:'#dbeafe'},
+        warn:{bg:'linear-gradient(135deg,#fffbeb,#fef3c7)',border:'#fcd34d',title:'#92400e',iconBg:'#fef3c7'},
+        tip:{bg:'linear-gradient(135deg,#f0fdf4,#dcfce7)',border:'#86efac',title:'#166534',iconBg:'#dcfce7'},
+        danger:{bg:'linear-gradient(135deg,#fef2f2,#fee2e2)',border:'#fca5a5',title:'#991b1b',iconBg:'#fee2e2'},
+    };
+    const t=themes[type||'info'];
+    return `<div style="background:${t.bg};border:1px solid ${t.border};border-radius:12px;padding:16px 18px;margin-bottom:14px;display:flex;gap:14px;align-items:start;box-shadow:0 1px 3px rgba(0,0,0,.04)">
+        <div style="width:40px;height:40px;border-radius:10px;background:${t.iconBg};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,.06)">${icon}</div>
+        <div style="flex:1"><div style="font-size:.82rem;font-weight:700;color:${t.title};margin-bottom:6px">${title}</div>
+        <div style="font-size:.72rem;color:#475569;line-height:1.7">${text}</div></div></div>`;
+}
+
+function toast(msg,type){
+    const el=document.getElementById('toasts');
+    const t=document.createElement('div');
+    t.className='toast toast-'+(type||'ok');
+    t.innerHTML=`<span style="font-size:16px">${type==='err'?'\u274C':type==='info'?'\u{1F535}':'\u2705'}</span>${esc(msg)}`;
+    el.appendChild(t);
+    setTimeout(()=>{t.style.animation='toastOut .3s ease forwards';setTimeout(()=>t.remove(),300);},4000);
+}
+
+function renderStepper(){
+    const el=document.getElementById('stepper');
+    el.innerHTML=STEPS.map((s,i)=>{
+        const cls=i<currentStep?'done':i===currentStep?'active':'';
+        return `<div class="step ${cls}"><div class="step-num">${i<currentStep?'\u2713':s.icon}</div><div class="step-label">${s.label}</div></div>`;
+    }).join('');
+}
+
+// ── Step 1: Scan ──
+async function loadScan(){
+    renderStepper();
+    const el=document.getElementById('content');
+    el.innerHTML='<div class="loading"><div class="spinner"></div>Scan du cluster en cours...</div>';
+    try{
+        const r=await fetch('/api/ceph/scan');
+        scanData=await r.json();
+        renderScan();
+        toast('Scan du cluster termine','info');
+    }catch(e){el.innerHTML=`<div class="content-body"><div class="alert alert-err">${esc(e.message)}</div></div>`;}
+}
+
+function renderScan(){
+    const el=document.getElementById('content');
+    const d=scanData;
+    let h=`<div class="content-header"><h2>\u{1F50D} Etape 1 - Detection du cluster</h2><p>Analyse des noeuds, disques, reseau et prerequis Ceph</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F4D6}','Qu\'est-ce que Ceph ?',
+        'Ceph est un systeme de stockage distribue qui replique les donnees sur plusieurs noeuds. '+
+        'Il offre une haute disponibilite et des performances elevees. Proxmox VE integre nativement Ceph '+
+        'avec 3 composants cles : <b>MON</b> (monitoring du cluster), <b>MGR</b> (management) et <b>OSD</b> (stockage sur disque).');
+    h+=infoCard('\u{2705}','Prerequis verifies',
+        'Le wizard verifie : <b>minimum 3 noeuds</b> en ligne, <b>quorum</b> du cluster Proxmox, '+
+        '<b>synchronisation NTP</b> (essentielle pour Ceph), <b>version homogene</b> de Proxmox, '+
+        '<b>disques disponibles</b> pour les OSD, et <b>MTU reseau</b> (jumbo frames recommande).');
+
+    // Checks
+    h+=`<div class="checks">`;
+    for(const c of d.checks){
+        const icon=c.level==='ok'?'\u2705':c.level==='critical'?'\u{1F6D1}':c.level==='warning'?'\u26A0\uFE0F':'\u{1F535}';
+        h+=`<div class="check"><span class="check-icon">${icon}</span>${esc(c.msg)}</div>`;
+    }
+    h+=`</div>`;
+
+    // Nodes
+    h+=`<h3 style="font-size:.82rem;margin:16px 0 10px">Noeuds du cluster</h3>`;
+    h+=`<div class="node-cards">`;
+    for(const n of d.nodes){
+        const cls=n.online?(n.free_disks.length>0?'ok':'warn'):'err';
+        h+=`<div class="ncard ${cls}">`;
+        h+=`<div class="ncard-h"><span style="font-size:16px">${n.online?'\u{1F5A5}':'\u{1F6AB}'}</span><div><div class="ncard-name">${esc(n.name)}</div><div class="ncard-ip">${esc(n.ip)}</div></div></div>`;
+        if(n.online){
+            h+=`<div class="ncard-stats">`;
+            h+=`<div class="ncard-stat">CPU: <b>${n.cpu_cores} cores</b></div>`;
+            h+=`<div class="ncard-stat">RAM: <b>${n.ram_total_gb} GB</b></div>`;
+            h+=`<div class="ncard-stat">Ceph: <b>${n.ceph_installed?'\u2705 Installe':'\u274C Non'}</b></div>`;
+            h+=`<div class="ncard-stat">NTP: <b>${n.ntp_synced?'\u2705 '+esc(n.ntp_drift):'\u274C'}</b></div>`;
+            h+=`<div class="ncard-stat">Disques: <b>${n.disks.length} (${n.free_disks.length} libre)</b></div>`;
+            h+=`<div class="ncard-stat">MTU: <b>${n.mtu}</b></div>`;
+            h+=`</div>`;
+            // Disks
+            if(n.disks.length){
+                h+=`<div style="margin-top:8px;font-size:.65rem;color:var(--text3)">`;
+                for(const dk of n.disks){
+                    const avail=dk.available;
+                    h+=`<div style="padding:2px 0">${avail?'\u{1F7E2}':'\u{1F534}'} ${esc(dk.name)} ${esc(dk.size)} ${esc(dk.type)} ${dk.mounted?'(monte)':dk.partitions>0?'(partitionne)':'(libre)'}</div>`;
+                }
+                h+=`</div>`;
+            }
+        } else {
+            h+=`<div style="color:var(--red);font-size:.75rem;font-weight:600">HORS LIGNE</div>`;
+        }
+        h+=`</div>`;
+    }
+    h+=`</div>`;
+
+    // Warnings
+    if(!d.ready){
+        h+=`<div class="alert alert-err">\u{1F6D1} Des prerequis critiques ne sont pas remplis. Corrigez-les avant de continuer.</div>`;
+    }
+
+    h+=`<div class="btn-row"><a href="/" class="btn btn-secondary">Annuler</a><button class="btn btn-primary" onclick="goStep(1)" ${d.ready?'':'disabled'}>Suivant \u2192</button></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+// ── Step 2: Template ──
+function renderTemplate(){
+    renderStepper();
+    const el=document.getElementById('content');
+    let h=`<div class="content-header"><h2>\u{1F3AF} Etape 2 - Profil de deploiement</h2><p>Choisissez un profil adapte a votre usage</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F3AF}','Choisir le bon profil',
+        'Le profil determine les parametres de replication et de performance. '+
+        '<b>Lab</b> : configuration minimale pour tester. <b>Production</b> : donnees repliquees 3 fois, securisees. '+
+        '<b>Performance</b> : optimise pour les I/O (jumbo frames, reseau dedie). '+
+        '<b>Budget</b> : economise les ressources avec une replication reduite.');
+    h+=infoCard('\u{1F4A1}','Replication et PG',
+        '<b>Replication size</b> = nombre de copies des donnees (3 = chaque bloc existe sur 3 OSD differents). '+
+        '<b>Min size</b> = minimum de copies disponibles pour accepter les ecritures (2 = tolere la perte d\'1 OSD). '+
+        '<b>PG (Placement Groups)</b> = determines automatiquement selon le nombre d\'OSD.');
+
+    h+=`<div class="templates">`;
+    const tpls=[
+        {id:'lab',name:'Lab / Test',desc:'Configuration minimale pour tests et apprentissage',specs:'Replication: 2 | Min: 1 | PG: 32 | Pas de reseau dedie'},
+        {id:'production',name:'Production',desc:'Configuration robuste pour charges de travail reelles',specs:'Replication: 3 | Min: 2 | PG: auto | Reseau dedie recommande'},
+        {id:'performance',name:'Performance',desc:'Optimise pour les I/O et faible latence',specs:'Replication: 3 | Min: 2 | PG: auto | Reseau dedie + jumbo frames'},
+        {id:'budget',name:'Budget / HCI',desc:'Hyper-convergence avec ressources limitees',specs:'Replication: 2 | Min: 1 | PG: 32 | Ressources partagees'},
+    ];
+    for(const t of tpls){
+        h+=`<div class="tpl ${wizConfig.template===t.id?'selected':''}" onclick="selectTemplate('${t.id}')">`;
+        h+=`<div class="tpl-name">${esc(t.name)}</div>`;
+        h+=`<div class="tpl-desc">${esc(t.desc)}</div>`;
+        h+=`<div class="tpl-specs">${esc(t.specs)}</div>`;
+        h+=`</div>`;
+    }
+    h+=`</div>`;
+
+    // Node selection
+    h+=`<h3 style="font-size:.82rem;margin:16px 0 8px">Noeuds a inclure dans Ceph</h3>`;
+    const onlineNodes=scanData.nodes.filter(n=>n.online);
+    for(const n of onlineNodes){
+        const checked=wizConfig.selected_nodes.includes(n.name)||wizConfig.selected_nodes.length===0;
+        if(wizConfig.selected_nodes.length===0) wizConfig.selected_nodes.push(n.name);
+        h+=`<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:.78rem;cursor:pointer">`;
+        h+=`<input type="checkbox" class="disk-check" onchange="toggleNode('${esc(n.name)}')" ${checked?'checked':''}>`;
+        h+=`<b>${esc(n.name)}</b> (${esc(n.ip)}) - ${n.cpu_cores} cores, ${n.ram_total_gb} GB RAM, ${n.free_disks.length} disque(s) libre(s)`;
+        h+=`</label>`;
+    }
+
+    h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(0)">\u2190 Retour</button><button class="btn btn-primary" onclick="goStep(2)">Suivant \u2192</button></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+function selectTemplate(id){
+    wizConfig.template=id;
+    const defaults={lab:{replication_size:2,min_size:1,pg_num:32},production:{replication_size:3,min_size:2,pg_num:64},performance:{replication_size:3,min_size:2,pg_num:128},budget:{replication_size:2,min_size:1,pg_num:32}};
+    Object.assign(wizConfig,defaults[id]||{});
+    renderTemplate();
+}
+
+function toggleNode(name){
+    const idx=wizConfig.selected_nodes.indexOf(name);
+    if(idx>=0)wizConfig.selected_nodes.splice(idx,1);
+    else wizConfig.selected_nodes.push(name);
+}
+
+// ── Step 3: Network ──
+function renderNetwork(){
+    renderStepper();
+    const el=document.getElementById('content');
+    let h=`<div class="content-header"><h2>\u{1F310} Etape 3 - Configuration reseau</h2><p>Le reseau est critique pour Ceph. Configurez les reseaux public et cluster.</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F310}','Reseau Ceph - CRITIQUE',
+        '80% des problemes Ceph viennent du reseau. Ceph utilise 2 reseaux : '+
+        '<b>Public</b> (acces clients/VMs aux donnees) et <b>Cluster</b> (replication entre OSD). '+
+        'En production, separer ces 2 reseaux evite que la replication sature le trafic VM. '+
+        'En lab, un seul reseau suffit.');
+    h+=infoCard('\u{1F4CA}','Recommandations reseau',
+        '<b>Debit</b> : 10 Gbps minimum recommande (1 Gbps fonctionne mais lent). '+
+        '<b>Latence</b> : < 1ms entre noeuds. <b>MTU</b> : 9000 (jumbo frames) ameliore le debit de 10-20%. '+
+        '<b>Pas de routeur</b> entre les noeuds Ceph (meme switch/VLAN).');
+
+    h+=`<div class="alert alert-warn">\u26A0 80% des problemes Ceph viennent du reseau. Verifiez bien la latence et le debit.</div>`;
+
+    h+=`<div class="form-row">`;
+    h+=`<div class="form-group"><label>Reseau public (client access)</label><input type="text" id="pubNet" value="${esc(wizConfig.public_network)}"><div class="form-help">CIDR du reseau ou les clients (VMs) accedent a Ceph</div></div>`;
+    h+=`<div class="form-group"><label>Reseau cluster (replication) - optionnel</label><input type="text" id="clusNet" value="${esc(wizConfig.cluster_network)}" placeholder="Laisser vide = meme que public"><div class="form-help">Reseau dedie pour la replication OSD. Recommande en production.</div></div>`;
+    h+=`</div>`;
+
+    // Network info per node
+    h+=`<h3 style="font-size:.78rem;margin:14px 0 8px">Interfaces detectees</h3>`;
+    h+=`<table class="disk-table"><thead><tr><th>Noeud</th><th>Interface</th><th>IPs</th><th>MTU</th></tr></thead><tbody>`;
+    for(const n of scanData.nodes.filter(n=>n.online)){
+        for(const iface of n.interfaces){
+            h+=`<tr><td><b>${esc(n.name)}</b></td><td>${esc(iface.name)}</td><td>${esc(iface.ips.join(', '))}</td>`;
+            h+=`<td style="color:${iface.mtu>=9000?'var(--green)':'var(--text3)'}">${iface.mtu}${iface.mtu>=9000?' \u2705':''}</td></tr>`;
+        }
+    }
+    h+=`</tbody></table>`;
+
+    if(wizConfig.template==='performance'){
+        h+=`<div class="alert alert-warn">\u{1F525} Profil Performance: jumbo frames (MTU 9000) et reseau dedie fortement recommandes</div>`;
+    }
+
+    h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(1)">\u2190 Retour</button><button class="btn btn-primary" onclick="saveNetwork();goStep(3)">Suivant \u2192</button></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+function saveNetwork(){
+    wizConfig.public_network=document.getElementById('pubNet').value;
+    wizConfig.cluster_network=document.getElementById('clusNet').value;
+}
+
+// ── Step 4: Install Ceph ──
+function renderInstall(){
+    renderStepper();
+    const el=document.getElementById('content');
+    let h=`<div class="content-header"><h2>\u{1F4E6} Etape 4 - Installation + Init + Premier MON</h2><p>Installation automatique via SSH sur tous les noeuds</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F4E6}','Ce qui va etre fait',
+        '<b>1.</b> Fix permissions PVE 9 (overrides systemd --setgroup www-data)<br>'+
+        '<b>2.</b> Installation paquets Ceph sur tous les noeuds<br>'+
+        '<b>3.</b> pveceph init sur le premier noeud<br>'+
+        '<b>4.</b> Bootstrap manuel du premier MON (monmaptool + mkfs)<br>'+
+        '<b>5.</b> Creation du premier MGR<br><br>'+
+        'Duree estimee : 3-5 minutes. Les services sont demarres avec retry automatique.');
+
+    h+=`<div style="font-size:.75rem;margin:10px 0">Noeuds : <b>${wizConfig.selected_nodes.join(', ')}</b> | Reseau : <b>${esc(wizConfig.public_network)}</b></div>`;
+    h+=`<div id="installLog"></div>`;
+
+    h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(2)">\u2190 Retour</button>`;
+    h+=`<button class="btn btn-danger" id="btnInstall" onclick="runInstall()">Installer Ceph \u{1F680}</button>`;
+    h+=`<button class="btn btn-primary" id="btnNext4" onclick="goStep(4)" disabled>Suivant \u2192</button></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+async function runInstall(){
+    document.getElementById('btnInstall').disabled=true;
+    const logEl=document.getElementById('installLog');
+    logEl.innerHTML='<div class="log" id="log4">Demarrage...</div>';
+    try{
+        // Step 1: Fix permissions
+        appendLog('log4',['','=== Fix permissions ===']);
+        const r1=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'fix_permissions',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d1=await r1.json(); appendLog('log4',d1.log||[]);
+
+        // Step 2: Install
+        appendLog('log4',['','=== Installation Ceph ===']);
+        const r2=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'install_ceph',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d2=await r2.json(); appendLog('log4',d2.log||[]);
+
+        // Step 3: Init + bootstrap MON
+        appendLog('log4',['','=== Init + Bootstrap MON ===']);
+        const r3=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'init_ceph',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d3=await r3.json(); appendLog('log4',d3.log||[]);
+
+        // Step 4: MGR on first node
+        appendLog('log4',['','=== Creation MGR ===']);
+        const r4=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'create_mgr',nodes:[wizConfig.selected_nodes[0]],config:wizConfig})});
+        const d4=await r4.json(); appendLog('log4',d4.log||[]);
+
+        document.getElementById('btnNext4').disabled=false;
+        toast('Installation + Init + MON + MGR termines !');
+    }catch(e){
+        appendLog('log4',['ERREUR: '+e.message]);
+        toast('Erreur: '+e.message,'err');
+        document.getElementById('btnInstall').disabled=false;
+    }
+}
+
+// ── Step 5: MON/MGR on secondary nodes ──
+function renderMonMgr(){
+    renderStepper();
+    const el=document.getElementById('content');
+    const secondaryNodes=wizConfig.selected_nodes.slice(1);
+
+    let h=`<div class="content-header"><h2>\u{1F4E1} Etape 5 - MON + MGR sur noeuds secondaires</h2><p>Ajout des Monitors et Managers sur ${secondaryNodes.join(', ')}</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F4E1}','Monitors secondaires',
+        'Les MON secondaires sont bootstrappes via <code>ceph mon getmap</code> + <code>ceph-mon --mkfs</code>. '+
+        'Methode plus fiable que pveceph mon create (qui echoue souvent sur les noeuds secondaires). '+
+        'Les MGR sont crees via pveceph mgr create.');
+
+    if(secondaryNodes.length===0){
+        h+=`<div class="alert alert-ok">Un seul noeud selectionne - pas de MON secondaire a creer.</div>`;
+        h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(3)">\u2190 Retour</button>`;
+        h+=`<button class="btn btn-primary" onclick="goStep(5)">Suivant \u2192</button></div>`;
+    } else {
+        h+=`<div style="font-size:.75rem;margin:10px 0">Noeuds secondaires : <b>${secondaryNodes.join(', ')}</b></div>`;
+        h+=`<div id="monLog"></div>`;
+        h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(3)">\u2190 Retour</button>`;
+        h+=`<button class="btn btn-danger" id="btnMon" onclick="runMonMgr()">Creer MON + MGR \u{1F4E1}</button>`;
+        h+=`<button class="btn btn-primary" id="btnNext5" onclick="goStep(5)" disabled>Suivant \u2192</button></div>`;
+    }
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+async function runMonMgr(){
+    document.getElementById('btnMon').disabled=true;
+    const logEl=document.getElementById('monLog');
+    logEl.innerHTML='<div class="log" id="log5">Creation MON + MGR sur noeuds secondaires...</div>';
+    const secondaryNodes=wizConfig.selected_nodes.slice(1);
+    try{
+        // MON on secondary nodes
+        appendLog('log5',['=== Creation MON ===']);
+        const r1=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'create_mon',nodes:secondaryNodes,config:wizConfig})});
+        const d1=await r1.json(); appendLog('log5',d1.log||[]);
+
+        // MGR on secondary nodes
+        appendLog('log5',['','=== Creation MGR ===']);
+        const r2=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'create_mgr',nodes:secondaryNodes,config:wizConfig})});
+        const d2=await r2.json(); appendLog('log5',d2.log||[]);
+
+        // Verify
+        appendLog('log5',['','=== Verification ===']);
+        const r3=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'health_check',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d3=await r3.json();
+        const healthLines=(d3.log||[]).filter(l=>l.includes('mon:')||l.includes('mgr:')||l.includes('HEALTH'));
+        appendLog('log5',healthLines);
+
+        document.getElementById('btnNext5').disabled=false;
+        toast('MON + MGR crees !');
+    }catch(e){
+        appendLog('log5',['ERREUR: '+e.message]);
+        toast('Erreur','err');
+        document.getElementById('btnMon').disabled=false;
+    }
+}
+
+// ── Step 6: OSD ──
+function renderOSD(){
+    renderStepper();
+    const el=document.getElementById('content');
+    let h=`<div class="content-header"><h2>\u{1F4BE} Etape 6 - Creation des OSD</h2><p>Selectionnez les disques pour le stockage Ceph</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F4BE}','OSD (Object Storage Daemon)',
+        'Chaque <b>OSD</b> gere un disque physique dedie. C\'est la ou les donnees sont stockees. '+
+        'Ceph distribue automatiquement les donnees entre les OSD via l\'algorithme CRUSH. '+
+        '<b>Bluestore</b> est le backend par defaut (acces direct au disque, sans filesystem). '+
+        'Pour des HDD, un <b>WAL/DB sur SSD</b> accelere considerablement les ecritures.');
+    h+=infoCard('\u26A0','Regles importantes',
+        '1 disque = 1 OSD. <b>Ne jamais utiliser le disque systeme</b> pour un OSD. '+
+        'Equilibrer le nombre d\'OSD par noeud. Minimum <b>1 OSD par noeud</b>, idealement 3+ pour la replication. '+
+        'Chaque OSD consomme ~1-2 GB de RAM.');
+
+    // Count available disks across all selected nodes
+    let totalAvail=0;
+    let nodesWithDisks=0;
+    for(const nn of wizConfig.selected_nodes){
+        const node=scanData.nodes.find(n=>n.name===nn);
+        if(!node)continue;
+        const avail=node.disks.filter(d=>!d.mounted && !d.name.startsWith('/dev/sr'));
+        if(avail.length>0) nodesWithDisks++;
+        totalAvail+=avail.length;
+    }
+
+    // BLOCKER: no disks available
+    if(totalAvail===0){
+        h+=`<div class="alert alert-err">\u{1F6D1} BLOQUANT : Aucun disque disponible pour les OSD !</div>`;
+        h+=`<div style="padding:20px;background:var(--red-bg);border:1px solid var(--red);border-radius:10px;margin:14px 0">`;
+        h+=`<h3 style="font-size:.85rem;color:#991b1b;margin-bottom:10px">Tous les disques sont utilises (systeme ou ZFS)</h3>`;
+        h+=`<p style="font-size:.75rem;color:var(--text2);line-height:1.6">Ceph necessite des disques dedies pour les OSD. Vous devez :</p>`;
+        h+=`<ol style="font-size:.75rem;color:var(--text2);line-height:1.8;margin:10px 0 10px 20px">`;
+        h+=`<li><b>Ajouter un nouveau disque</b> dans Hyper-V sur chaque noeud Proxmox :<br>`;
+        h+=`<span style="font-size:.68rem;color:var(--text3)">Hyper-V Manager > VM > Parametres > Controleur SCSI > Ajouter > Disque dur > Nouveau VHDX (min 50 GB)</span></li>`;
+        h+=`<li>Repeter pour <b>chaque noeud</b> (minimum 3 noeuds avec 1 OSD chacun)</li>`;
+        h+=`<li>Relancer le scan en revenant a l'etape 1</li>`;
+        h+=`</ol>`;
+        h+=`<div style="font-size:.7rem;color:#991b1b;margin-top:10px;padding:8px;background:#fff;border-radius:6px;border:1px solid #fca5a5">`;
+        h+=`<b>\u26A0 Important :</b> Ne reutilisez PAS les disques systeme ou ZFS existants. Ceph effacera tout le contenu du disque.`;
+        h+=`</div></div>`;
+
+        // Show current disk state
+        for(const nn of wizConfig.selected_nodes){
+            const node=scanData.nodes.find(n=>n.name===nn);
+            if(!node)continue;
+            h+=`<h3 style="font-size:.75rem;margin:14px 0 6px;color:var(--text3)">${esc(nn)} - Disques actuels</h3>`;
+            h+=`<table class="disk-table"><thead><tr><th>Disque</th><th>Taille</th><th>Type</th><th>Status</th></tr></thead><tbody>`;
+            for(const dk of node.disks){
+                if(dk.name.startsWith('/dev/sr'))continue;
+                h+=`<tr style="opacity:.5"><td><b>${esc(dk.name)}</b></td><td>${esc(dk.size)}</td><td>${esc(dk.type)}</td>`;
+                h+=`<td>${dk.mounted?'\u{1F534} Monte (systeme)':dk.partitions>0?'\u26A0 Partitionne (ZFS/LVM)':'\u2705 Libre'}</td></tr>`;
+            }
+            h+=`</tbody></table>`;
+        }
+
+        h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(4)">\u2190 Retour</button>`;
+        h+=`<button class="btn btn-primary" onclick="goStep(0)">\u{1F504} Rescanner le cluster</button></div>`;
+        h+=`</div>`;
+        el.innerHTML=h;
+        return;
+    }
+
+    // Warning if not enough nodes with disks
+    if(nodesWithDisks<3){
+        h+=`<div class="alert alert-warn">\u26A0 Seulement ${nodesWithDisks} noeud(s) ont des disques disponibles. Ceph recommande minimum 3 noeuds avec OSD pour la replication.</div>`;
+    }
+
+    h+=`<div class="alert alert-err">\u26A0 ATTENTION: Les disques selectionnes seront EFFACES ! Toutes les donnees seront perdues.</div>`;
+
+    // Per-node disk selection
+    for(const nn of wizConfig.selected_nodes){
+        const node=scanData.nodes.find(n=>n.name===nn);
+        if(!node)continue;
+        const availCount=node.disks.filter(d=>!d.mounted && !d.name.startsWith('/dev/sr')).length;
+        h+=`<h3 style="font-size:.78rem;margin:14px 0 6px">${esc(nn)} - Disques <span style="color:${availCount>0?'var(--green)':'var(--red)'}">(${availCount} disponible${availCount>1?'s':''})</span></h3>`;
+        h+=`<table class="disk-table"><thead><tr><th>OSD</th><th>Disque</th><th>Taille</th><th>Type</th><th>Status</th></tr></thead><tbody>`;
+        for(const dk of node.disks){
+            if(dk.name.startsWith('/dev/sr'))continue;
+            const canUse=!dk.mounted;
+            h+=`<tr style="${canUse?'':'opacity:.4'}">`;
+            h+=`<td><input type="checkbox" class="disk-check" data-node="${esc(nn)}" data-disk="${esc(dk.name)}" ${canUse?'':'disabled'} onchange="updateOSDMap()"></td>`;
+            h+=`<td><b>${esc(dk.name)}</b></td><td>${esc(dk.size)}</td><td>${esc(dk.type)}</td>`;
+            h+=`<td>${dk.available?'<span style="color:var(--green)">\u2705 Libre</span>':dk.mounted?'<span style="color:var(--red)">\u{1F534} Monte (systeme)</span>':'<span style="color:var(--yellow)">\u26A0 Partitionne</span>'}</td>`;
+            h+=`</tr>`;
+        }
+        h+=`</tbody></table>`;
+    }
+
+    h+=`<div id="osdLog"></div>`;
+    h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(4)">\u2190 Retour</button>`;
+    h+=`<button class="btn btn-danger" id="btnOSD" onclick="runOSD()">Creer les OSD \u{1F4BE}</button>`;
+    h+=`<button class="btn btn-primary" id="btnNext6" onclick="goStep(6)" disabled>Suivant \u2192</button></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+function updateOSDMap(){
+    wizConfig.osd_map={};
+    document.querySelectorAll('.disk-check[data-node]').forEach(cb=>{
+        if(cb.checked){
+            const nn=cb.dataset.node;
+            if(!wizConfig.osd_map[nn])wizConfig.osd_map[nn]=[];
+            wizConfig.osd_map[nn].push(cb.dataset.disk);
+        }
+    });
+    // Disable create button if no disk selected
+    const btn=document.getElementById('btnOSD');
+    const total=Object.values(wizConfig.osd_map).reduce((a,b)=>a+b.length,0);
+    if(btn) btn.disabled=total===0;
+}
+
+async function runOSD(){
+    updateOSDMap();
+    const total=Object.values(wizConfig.osd_map).reduce((a,b)=>a+b.length,0);
+    if(total===0){alert('Selectionnez au moins un disque !');return;}
+
+    document.getElementById('btnOSD').disabled=true;
+    const logEl=document.getElementById('osdLog');
+    logEl.innerHTML='<div class="log" id="log6">Creation des OSD (peut prendre plusieurs minutes)...</div>';
+    try{
+        const r=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'create_osd',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d=await r.json();
+        appendLog('log6',d.log||[d.error||'Erreur']);
+
+        // Verify OSD were actually created
+        appendLog('log6',['','Verification des OSD...']);
+        await new Promise(r=>setTimeout(r,3000)); // Wait for Ceph to register OSDs
+        const r2=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'health_check',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d2=await r2.json();
+        const logs=d2.log||[];
+        // Check for OSD count > 0 (format: "X osds: X up")
+        const osdOk=logs.some(l=>l.includes('osds:') && !l.includes('0 osds') && !l.includes('0 up'));
+        const healthLines=logs.filter(l=>l.includes('osd')||l.includes('HEALTH')||l.includes('---'));
+        appendLog('log6',healthLines.length?healthLines:['Verification en cours...']);
+
+        if(osdOk){
+            appendLog('log6',['','OSD crees avec succes !']);
+            document.getElementById('btnNext6').disabled=false;
+            toast('OSD crees et verifies !');
+        } else {
+            appendLog('log6',['','ATTENTION: OSD pas encore detectes. Attendez 30s et cliquez Re-verifier.']);
+            document.getElementById('btnOSD').disabled=false;
+            document.getElementById('btnOSD').textContent='\u{1F504} Re-verifier les OSD';
+            document.getElementById('btnOSD').onclick=async function(){
+                this.disabled=true;
+                appendLog('log6',['','Re-verification...']);
+                const r3=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'health_check',nodes:wizConfig.selected_nodes,config:wizConfig})});
+                const d3=await r3.json();
+                const ok2=(d3.log||[]).some(l=>l.includes('osds:')&&!l.includes('0 osds'));
+                appendLog('log6',(d3.log||[]).filter(l=>l.includes('osd')||l.includes('HEALTH')));
+                if(ok2){document.getElementById('btnNext6').disabled=false;toast('OSD detectes !');}
+                else{this.disabled=false;toast('OSD toujours pas detectes','err');}
+            };
+            toast('OSD en cours de creation...','info');
+        }
+    }catch(e){
+        appendLog('log6',['ERREUR: '+e.message]);
+        toast('Erreur: '+e.message,'err');
+        document.getElementById('btnOSD').disabled=false;
+    }
+}
+
+// ── Step 7: Pool ──
+function renderPool(){
+    renderStepper();
+    const el=document.getElementById('content');
+    // Calculate recommended PG
+    const totalOSD=Object.values(wizConfig.osd_map).reduce((a,b)=>a+b.length,0)||3;
+    const recPG=Math.pow(2,Math.ceil(Math.log2(totalOSD*100/wizConfig.replication_size)));
+    if(wizConfig.pg_num<recPG)wizConfig.pg_num=Math.min(recPG,256);
+
+    let h=`<div class="content-header"><h2>\u{1F3CA} Etape 7 - Creation du pool Ceph</h2><p>Configurez le pool de stockage et l'integration Proxmox</p></div><div class="content-body">`;
+
+    h+=`<div class="form-row">`;
+    h+=`<div class="form-group"><label>Nom du pool</label><input type="text" id="poolName" value="${esc(wizConfig.pool_name)}"></div>`;
+    h+=`<div class="form-group"><label>Placement Groups (PG)</label><input type="number" id="pgNum" value="${wizConfig.pg_num}"><div class="form-help">Recommande: ${recPG} (base sur ${totalOSD} OSD)</div></div>`;
+    h+=`</div>`;
+    h+=`<div class="form-row">`;
+    h+=`<div class="form-group"><label>Taille de replication</label><select id="replSize"><option value="2" ${wizConfig.replication_size===2?'selected':''}>2 (minimum)</option><option value="3" ${wizConfig.replication_size===3?'selected':''}>3 (recommande)</option></select></div>`;
+    h+=`<div class="form-group"><label>Taille minimum</label><select id="minSize"><option value="1" ${wizConfig.min_size===1?'selected':''}>1 (dangereux)</option><option value="2" ${wizConfig.min_size===2?'selected':''}>2 (recommande)</option></select></div>`;
+    h+=`</div>`;
+
+    h+=infoCard('\u{1F3CA}','Pools Ceph',
+        'Un <b>pool</b> est un espace de stockage logique dans Ceph. Les VMs stockent leurs disques dans un pool via <b>RBD</b> (RADOS Block Device). '+
+        'Les <b>PG (Placement Groups)</b> repartissent les objets entre les OSD. Trop peu de PG = mauvaise distribution. Trop = surcharge. '+
+        'Formule : PG = (nb OSD x 100) / taille de replication, arrondi a la puissance de 2 superieure.');
+    h+=infoCard('\u{1F4A1}','Integration Proxmox',
+        'Le pool sera automatiquement ajoute comme stockage <b>RBD</b> dans Proxmox. '+
+        'Vous pourrez ensuite y stocker des disques VM, des containers, et beneficier de la <b>migration live</b> '+
+        'sans stockage partage externe (Ceph EST le stockage partage).');
+
+    h+=`<div id="poolLog"></div>`;
+    h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(5)">\u2190 Retour</button>`;
+    h+=`<button class="btn btn-danger" id="btnPool" onclick="runPool()">Creer le pool \u{1F3CA}</button>`;
+    h+=`<button class="btn btn-primary" id="btnNext7" onclick="goStep(7)" disabled>Suivant \u2192</button></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+}
+
+async function runPool(){
+    document.getElementById('btnPool').disabled=true;
+    wizConfig.pool_name=document.getElementById('poolName').value.replace(/[^a-zA-Z0-9_-]/g,'');
+    wizConfig.pg_num=parseInt(document.getElementById('pgNum').value)||64;
+    wizConfig.replication_size=parseInt(document.getElementById('replSize').value)||3;
+    wizConfig.min_size=parseInt(document.getElementById('minSize').value)||2;
+
+    if(!wizConfig.pool_name){alert('Nom du pool invalide');document.getElementById('btnPool').disabled=false;return;}
+
+    const logEl=document.getElementById('poolLog');
+    logEl.innerHTML='<div class="log" id="log7">Creation du pool...</div>';
+    try{
+        const r=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'create_pool',nodes:wizConfig.selected_nodes,config:wizConfig})});
+        const d=await r.json();
+        appendLog('log7',d.log||[d.error||'Erreur']);
+        if(d.success===false){
+            toast('Erreur creation pool: '+(d.error||''),'err');
+            document.getElementById('btnPool').disabled=false;
+        } else {
+            document.getElementById('btnNext7').disabled=false;
+            toast('Pool Ceph cree et ajoute a Proxmox !');
+        }
+    }catch(e){
+        appendLog('log7',['ERREUR: '+e.message]);
+        toast('Erreur: '+e.message,'err');
+        document.getElementById('btnPool').disabled=false;
+    }
+}
+
+// ── Step 8: Verify ──
+function renderVerify(){
+    renderStepper();
+    const el=document.getElementById('content');
+    let h=`<div class="content-header"><h2>\u2705 Etape 8 - Verification</h2><p>Verification de la sante du cluster Ceph</p></div><div class="content-body">`;
+
+    h+=infoCard('\u{1F3C1}','Verification finale',
+        'Le wizard execute <code>ceph -s</code> pour verifier la sante du cluster. '+
+        '<b>HEALTH_OK</b> = tout fonctionne. <b>HEALTH_WARN</b> = fonctionnel mais attention (ex: trop peu d\'OSD). '+
+        '<b>HEALTH_ERR</b> = probleme critique. On verifie aussi l\'arbre OSD, les pools et l\'espace disponible.');
+
+    h+=`<div id="verifyLog"><div class="loading"><div class="spinner"></div>Verification en cours...</div></div>`;
+    h+=`<div class="btn-row"><button class="btn btn-secondary" onclick="goStep(6)">\u2190 Retour</button>`;
+    h+=`<a href="/" class="btn btn-primary">Terminer \u2192 Cluster Manager</a></div>`;
+    h+=`</div>`;
+    el.innerHTML=h;
+    runVerify();
+}
+
+async function runVerify(){
+    const r=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({step:'health_check',nodes:wizConfig.selected_nodes,config:wizConfig})});
+    const d=await r.json();
+    const logEl=document.getElementById('verifyLog');
+    let h='<div class="log" id="log8">';
+    for(const line of d.log||[]){
+        if(line.startsWith('---'))h+=`<div class="sep">${esc(line)}</div>`;
+        else if(line.includes('HEALTH_OK'))h+=`<div class="ok">${esc(line)}</div>`;
+        else if(line.includes('HEALTH_WARN'))h+=`<div class="warn">${esc(line)}</div>`;
+        else if(line.includes('HEALTH_ERR'))h+=`<div class="err">${esc(line)}</div>`;
+        else h+=`<div>${esc(line)}</div>`;
+    }
+    h+='</div>';
+    logEl.innerHTML=h;
+}
+
+// ── Navigation ──
+function goStep(n){
+    currentStep=n;
+    const renderers=[loadScan,renderTemplate,renderNetwork,renderInstall,renderMonMgr,renderOSD,renderPool,renderVerify];
+    renderers[n]();
+}
+
+function appendLog(id,lines){
+    const el=document.getElementById(id);
+    if(!el)return;
+    for(const line of lines||[]){
+        const div=document.createElement('div');
+        div.textContent=line;
+        if(line.includes('Erreur')||line.includes('Error'))div.className='err';
+        else if(line.includes('OK')||line.includes('cree')||line.includes('success'))div.className='ok';
+        else if(line.includes('Warning'))div.className='warn';
+        el.appendChild(div);
+    }
+    el.scrollTop=el.scrollHeight;
+}
+
+// === PURGE ===
+async function purgeCeph(){
+    toast('Purge Ceph en cours...','info');
+    try{
+        const r=await fetch('/api/ceph/install',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({step:'purge',nodes:scanData?scanData.nodes.filter(n=>n.online).map(n=>n.name):['proxmox1','proxmox2','proxmox3'],config:{}})});
+        const d=await r.json();
+        if(d.log)d.log.forEach(l=>console.log(l));
+        toast('Ceph purge ! Redemarrage du wizard...','ok');
+        setTimeout(()=>goStep(0),2000);
+    }catch(e){toast('Erreur purge: '+e.message,'err');}
+}
+
+// Start
+goStep(0);
+</script>
+</body>
+</html>

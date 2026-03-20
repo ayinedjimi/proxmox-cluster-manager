@@ -11,6 +11,8 @@ import paramiko
 import sqlite3
 import json as json_lib
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 from config import (
     PROXMOX_CLUSTER, REFRESH_INTERVAL,
     SYSLOG_LINES, TASK_LIMIT, CLUSTER_LOG_MAX,
@@ -40,6 +42,10 @@ def init_db():
 init_db()
 
 _auth_cache = {"ticket": None, "csrf": None, "host": None, "expires": 0}
+
+# Status cache - avoid hitting Proxmox API on every browser refresh
+_status_cache = {"data": None, "time": 0, "lock": threading.Lock()}
+STATUS_CACHE_TTL = 5  # seconds
 
 
 def get_ticket():
@@ -117,6 +123,26 @@ def index():
 
 @app.route("/api/status")
 def api_status():
+    # Return cached data if fresh (skip if nocache param)
+    now = time.time()
+    force = flask_request.args.get("nocache")
+    if not force:
+        with _status_cache["lock"]:
+            if _status_cache["data"] and now - _status_cache["time"] < STATUS_CACHE_TTL:
+                return jsonify(_status_cache["data"])
+
+    result = _build_status()
+    if isinstance(result, tuple):
+        return result
+
+    with _status_cache["lock"]:
+        _status_cache["data"] = result
+        _status_cache["time"] = time.time()
+
+    return jsonify(result)
+
+
+def _build_status():
     host, ticket, _ = get_ticket()
     if not host:
         return jsonify({"error": "Impossible de se connecter au cluster Proxmox"}), 503
@@ -158,8 +184,8 @@ def api_status():
     if isinstance(nodes_list, dict) and "error" in nodes_list:
         return jsonify({"error": nodes_list["error"]}), 503
 
-    nodes = []
-    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+    def _fetch_node(node):
+        """Fetch all data for one node (runs in thread)."""
         node_name = node.get("node", "unknown")
         node_online = node.get("status") == "online"
         node_ip = "N/A"
@@ -175,10 +201,29 @@ def api_status():
         }
 
         if not node_online:
-            nodes.append(node_data)
-            continue
+            return node_data
 
-        ns = proxmox_api(host, f"/nodes/{node_name}/status")
+        # Parallel fetch all node-level data
+        node_calls = {
+            "status": f"/nodes/{node_name}/status",
+            "rrd": f"/nodes/{node_name}/rrddata?timeframe=hour",
+            "services": f"/nodes/{node_name}/services",
+            "disks": f"/nodes/{node_name}/disks/list",
+            "network": f"/nodes/{node_name}/network",
+            "qemu": f"/nodes/{node_name}/qemu",
+            "lxc": f"/nodes/{node_name}/lxc",
+            "storage": f"/nodes/{node_name}/storage",
+        }
+        node_results = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futs = {pool.submit(proxmox_api, host, ep): key for key, ep in node_calls.items()}
+            for f in as_completed(futs):
+                try:
+                    node_results[futs[f]] = f.result()
+                except Exception:
+                    pass
+
+        ns = node_results.get("status", {})
         if isinstance(ns, dict) and "error" not in ns:
             cpu_info = ns.get("cpuinfo", {})
             memory = ns.get("memory", {})
@@ -219,7 +264,7 @@ def api_status():
                 "ksm_shared": ns.get("ksm", {}).get("shared", 0),
             }
 
-        rrd = proxmox_api(host, f"/nodes/{node_name}/rrddata?timeframe=hour")
+        rrd = node_results.get("rrd")
         if isinstance(rrd, list) and rrd:
             last = rrd[-1]
             netin_raw = last.get("netin", 0)
@@ -250,7 +295,7 @@ def api_status():
                 "load": round(e.get("loadavg", 0), 2),
             } for e in rrd[-20:]]
 
-        svcs = proxmox_api(host, f"/nodes/{node_name}/services")
+        svcs = node_results.get("services")
         if isinstance(svcs, list):
             critical = ["pvedaemon", "pveproxy", "pve-cluster", "corosync",
                         "pve-ha-crm", "pve-ha-lrm", "pve-firewall",
@@ -263,7 +308,7 @@ def api_status():
                         "desc": s.get("desc", ""), "critical": svc_name in critical,
                     })
 
-        disks = proxmox_api(host, f"/nodes/{node_name}/disks/list")
+        disks = node_results.get("disks")
         if isinstance(disks, list):
             for d in disks:
                 node_data["disks"].append({
@@ -272,7 +317,7 @@ def api_status():
                     "wearout": d.get("wearout", "N/A"), "serial": d.get("serial", "")[:16],
                 })
 
-        nets = proxmox_api(host, f"/nodes/{node_name}/network")
+        nets = node_results.get("network")
         if isinstance(nets, list):
             for n in nets:
                 if n.get("active") and n.get("address"):
@@ -282,7 +327,7 @@ def api_status():
                         "gateway": n.get("gateway", ""), "bridge_ports": n.get("bridge_ports", ""),
                     })
 
-        for vm in (proxmox_api(host, f"/nodes/{node_name}/qemu") or []):
+        for vm in (node_results.get("qemu") or []):
             if not isinstance(vm, dict):
                 continue
             vmid = vm.get("vmid")
@@ -316,9 +361,28 @@ def api_status():
                 else:
                     vm_entry["agent_status"] = "non configure"
 
-            # Try guest agent for running VMs
+            # Try guest agent for running VMs (all calls in parallel)
             if vm.get("status") == "running" and vm_entry["agent_enabled"]:
-                agent_info = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/agent/get-osinfo")
+                base = f"/nodes/{node_name}/qemu/{vmid}"
+                agent_calls = {
+                    "osinfo": f"{base}/agent/get-osinfo",
+                    "hostname": f"{base}/agent/get-host-name",
+                    "timezone": f"{base}/agent/get-timezone",
+                    "network": f"{base}/agent/network-get-interfaces",
+                    "fsinfo": f"{base}/agent/get-fsinfo",
+                    "vcpus": f"{base}/agent/get-vcpus",
+                    "rrd": f"{base}/rrddata?timeframe=hour",
+                }
+                agent_results = {}
+                with ThreadPoolExecutor(max_workers=7) as pool:
+                    futs = {pool.submit(proxmox_api, host, ep): key for key, ep in agent_calls.items()}
+                    for f in as_completed(futs):
+                        try:
+                            agent_results[futs[f]] = f.result()
+                        except Exception:
+                            pass
+
+                agent_info = agent_results.get("osinfo", {})
                 if isinstance(agent_info, dict) and "error" not in agent_info:
                     result = agent_info.get("result", agent_info)
                     vm_entry["agent_running"] = True
@@ -330,42 +394,30 @@ def api_status():
                         "machine": result.get("machine", ""),
                     }
 
-                    # Hostname
-                    hn = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/agent/get-host-name")
+                    hn = agent_results.get("hostname", {})
                     if isinstance(hn, dict) and "error" not in hn:
                         vm_entry["guest_agent"]["hostname"] = hn.get("result", {}).get("host-name", "")
 
-                    # Timezone
-                    tz = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/agent/get-timezone")
+                    tz = agent_results.get("timezone", {})
                     if isinstance(tz, dict) and "error" not in tz:
                         vm_entry["guest_agent"]["timezone"] = tz.get("result", {}).get("zone", "")
 
-                    # Network interfaces
-                    net_ifaces = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/agent/network-get-interfaces")
+                    net_ifaces = agent_results.get("network", {})
                     if isinstance(net_ifaces, dict) and "error" not in net_ifaces:
                         ifaces = []
                         for iface in net_ifaces.get("result", []):
                             if iface.get("name") == "lo":
                                 continue
-                            ips = []
-                            for addr in iface.get("ip-addresses", []):
-                                if addr.get("ip-address-type") == "ipv4":
-                                    ips.append(addr.get("ip-address", ""))
+                            ips = [addr.get("ip-address", "") for addr in iface.get("ip-addresses", []) if addr.get("ip-address-type") == "ipv4"]
                             stats = iface.get("statistics", {})
                             ifaces.append({
-                                "name": iface.get("name", ""),
-                                "mac": iface.get("hardware-address", ""),
-                                "ips": ips,
-                                "rx_bytes": fmt_bytes(stats.get("rx-bytes", 0)),
-                                "tx_bytes": fmt_bytes(stats.get("tx-bytes", 0)),
-                                "rx_errs": stats.get("rx-errs", 0),
-                                "tx_errs": stats.get("tx-errs", 0),
-                                "rx_dropped": stats.get("rx-dropped", 0),
+                                "name": iface.get("name", ""), "mac": iface.get("hardware-address", ""), "ips": ips,
+                                "rx_bytes": fmt_bytes(stats.get("rx-bytes", 0)), "tx_bytes": fmt_bytes(stats.get("tx-bytes", 0)),
+                                "rx_errs": stats.get("rx-errs", 0), "tx_errs": stats.get("tx-errs", 0), "rx_dropped": stats.get("rx-dropped", 0),
                             })
                         vm_entry["guest_agent"]["interfaces"] = ifaces
 
-                    # Filesystems
-                    fs_info = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/agent/get-fsinfo")
+                    fs_info = agent_results.get("fsinfo", {})
                     if isinstance(fs_info, dict) and "error" not in fs_info:
                         filesystems = []
                         for fs in fs_info.get("result", []):
@@ -373,26 +425,18 @@ def api_status():
                             used = fs.get("used-bytes", 0)
                             if total <= 0 or fs.get("type") in ("squashfs", "iso9660", "tmpfs", "devtmpfs"):
                                 continue
-                            filesystems.append({
-                                "mount": fs.get("mountpoint", ""),
-                                "name": fs.get("name", ""),
-                                "type": fs.get("type", ""),
-                                "total": fmt_bytes(total),
-                                "used": fmt_bytes(used),
-                                "free": fmt_bytes(max(total - used, 0)),
-                                "pct": round(used / max(total, 1) * 100, 1),
-                            })
+                            filesystems.append({"mount": fs.get("mountpoint", ""), "name": fs.get("name", ""), "type": fs.get("type", ""),
+                                "total": fmt_bytes(total), "used": fmt_bytes(used), "free": fmt_bytes(max(total - used, 0)),
+                                "pct": round(used / max(total, 1) * 100, 1)})
                         vm_entry["guest_agent"]["filesystems"] = filesystems
 
-                    # vCPUs
-                    vcpus = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/agent/get-vcpus")
+                    vcpus = agent_results.get("vcpus", {})
                     if isinstance(vcpus, dict) and "error" not in vcpus:
                         result_vcpus = vcpus.get("result", [])
                         vm_entry["guest_agent"]["vcpus_online"] = sum(1 for v in result_vcpus if v.get("online"))
                         vm_entry["guest_agent"]["vcpus_total"] = len(result_vcpus)
 
-                    # VM RRD for PSI + disk I/O
-                    vm_rrd = proxmox_api(host, f"/nodes/{node_name}/qemu/{vmid}/rrddata?timeframe=hour")
+                    vm_rrd = agent_results.get("rrd")
                     if isinstance(vm_rrd, list) and vm_rrd:
                         last = vm_rrd[-1]
                         vm_entry["guest_agent"]["rrd"] = {
@@ -420,7 +464,7 @@ def api_status():
 
             node_data["vms"].append(vm_entry)
 
-        for ct in (proxmox_api(host, f"/nodes/{node_name}/lxc") or []):
+        for ct in (node_results.get("lxc") or []):
             if not isinstance(ct, dict):
                 continue
             node_data["containers"].append({
@@ -439,7 +483,7 @@ def api_status():
                 "netin": fmt_bytes(ct.get("netin", 0)), "netout": fmt_bytes(ct.get("netout", 0)),
             })
 
-        storages = proxmox_api(host, f"/nodes/{node_name}/storage")
+        storages = node_results.get("storage")
         if isinstance(storages, list):
             for st in storages:
                 if st.get("active"):
@@ -451,9 +495,20 @@ def api_status():
                         "content": st.get("content", ""), "plugintype": st.get("plugintype", ""),
                     })
 
-        nodes.append(node_data)
+        return node_data
 
-    return jsonify({"cluster": cluster_info, "api_host": host, "nodes": nodes})
+    # Fetch all nodes in parallel
+    nodes = []
+    with ThreadPoolExecutor(max_workers=len(nodes_list)) as executor:
+        futures = {executor.submit(_fetch_node, n): n for n in sorted(nodes_list, key=lambda n: n.get("node", ""))}
+        for future in as_completed(futures):
+            try:
+                nodes.append(future.result())
+            except Exception:
+                pass
+    nodes.sort(key=lambda n: n.get("name", ""))
+
+    return {"cluster": cluster_info, "api_host": host, "nodes": nodes}
 
 
 # ── Journaux ────────────────────────────────────────────────────────────────
@@ -1220,7 +1275,7 @@ def api_optimizations():
             "UEFI recommande pour Secure Boot et fonctionnalites modernes",
             "Reinstaller en mode UEFI si necessaire")
 
-        # ── ZFS / ARC CACHE ──
+        # ── NTP + ZFS (via SSH) ──
         try:
             node_ip = None
             for ni in cluster_info.get("nodes_info", []):
@@ -1234,6 +1289,54 @@ def api_optimizations():
             ssh.connect(node_ip,
                         username=PROXMOX_CLUSTER["username"].split("@")[0],
                         password=PROXMOX_CLUSTER["password"], timeout=5)
+
+            # ── NTP CHECK ──
+            _, stdout, _ = ssh.exec_command("chronyc tracking 2>/dev/null", timeout=5)
+            chrony_out = stdout.read().decode("utf-8", errors="replace")
+            _, stdout, _ = ssh.exec_command("chronyc sources 2>/dev/null | grep '\\^' | wc -l", timeout=5)
+            ntp_count = stdout.read().decode().strip()
+            ntp_count = int(ntp_count) if ntp_count.isdigit() else 0
+
+            ntp_active = bool(chrony_out.strip())
+            ntp_synced = False
+            ntp_drift = 0
+            ntp_stratum = 0
+            for line in chrony_out.split("\n"):
+                if "System time" in line:
+                    import re as _re
+                    m = _re.search(r'([\d.]+) seconds', line)
+                    if m:
+                        ntp_drift = float(m.group(1))
+                        ntp_synced = ntp_drift < 1
+                if "Stratum" in line:
+                    try:
+                        ntp_stratum = int(line.split(":")[1].strip())
+                    except (ValueError, IndexError):
+                        pass
+
+            chk("NTP", nn, "Chrony (NTP) actif",
+                ntp_active, "Actif" if ntp_active else "Inactif !",
+                "Chrony doit etre actif pour la synchronisation du cluster",
+                "systemctl enable --now chrony")
+
+            chk("NTP", nn, f"Sources NTP configurees ({ntp_count})",
+                ntp_count >= 2,
+                f"{ntp_count} source(s)",
+                "Au moins 2 sources NTP pour la redondance",
+                "Editer /etc/chrony/chrony.conf, ajouter: server ntp.ubuntu.com iburst")
+
+            chk("NTP", nn, "Synchronisation NTP",
+                ntp_synced,
+                f"Drift: {ntp_drift*1000:.1f} ms" if ntp_active else "Non synchronise",
+                "Le drift doit etre < 1 seconde pour le quorum Corosync",
+                "chronyc makestep pour forcer une synchro immediate")
+
+            if ntp_active and ntp_drift > 0.1:
+                chk("NTP", nn, "Drift excessif",
+                    False,
+                    f"{ntp_drift*1000:.1f} ms",
+                    "Un drift > 100ms peut causer des problemes de cluster",
+                    "Verifier la source NTP: chronyc sources -v")
 
             # Check if ZFS module is loaded
             _, stdout, _ = ssh.exec_command("cat /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null", timeout=5)
@@ -1329,8 +1432,106 @@ def api_optimizations():
                         "Un ratio > 80% est bon. Si trop bas, augmenter zfs_arc_max",
                         "Augmenter la taille ARC ou ajouter un L2ARC (SSD cache)")
 
+            # ── IOMMU / PASSTHROUGH ──
+            _, stdout, _ = ssh.exec_command("dmesg 2>/dev/null | grep -i 'IOMMU\\|DMAR\\|AMD-Vi' | head -3", timeout=5)
+            iommu_dmesg = stdout.read().decode().strip()
+            _, stdout, _ = ssh.exec_command("cat /proc/cmdline 2>/dev/null", timeout=5)
+            cmdline = stdout.read().decode().strip()
+
+            iommu_enabled = "iommu=pt" in cmdline or "intel_iommu=on" in cmdline or "amd_iommu=on" in cmdline
+            chk("IOMMU/Passthrough", nn, "IOMMU active (iommu=pt)",
+                iommu_enabled, "Actif" if iommu_enabled else "Non active",
+                "Necessaire pour PCI passthrough (GPU, NIC SR-IOV). Ajouter iommu=pt au kernel.",
+                "Editer /etc/default/grub: GRUB_CMDLINE_LINUX_DEFAULT='quiet intel_iommu=on iommu=pt' puis update-grub && reboot")
+
+            has_pt = "intel_iommu=on" in cmdline or "amd_iommu=on" in cmdline
+            chk("IOMMU/Passthrough", nn, "Intel VT-d / AMD-Vi active dans kernel",
+                has_pt, cmdline.split("quiet")[1].strip()[:60] if "quiet" in cmdline else cmdline[:60],
+                "Ajouter intel_iommu=on (Intel) ou amd_iommu=on (AMD) dans GRUB",
+                "/etc/default/grub > GRUB_CMDLINE_LINUX_DEFAULT puis update-grub && reboot")
+
+            # IOMMU groups check
+            _, stdout, _ = ssh.exec_command("find /sys/kernel/iommu_groups/ -type l 2>/dev/null | wc -l", timeout=5)
+            iommu_groups = stdout.read().decode().strip()
+            iommu_count = int(iommu_groups) if iommu_groups.isdigit() else 0
+            chk("IOMMU/Passthrough", nn, f"Groupes IOMMU ({iommu_count})",
+                iommu_count > 0 if iommu_enabled else True,
+                f"{iommu_count} groupes" if iommu_count > 0 else "Aucun (IOMMU desactive)",
+                "Des groupes IOMMU propres sont necessaires pour le passthrough",
+                "find /sys/kernel/iommu_groups/ -type l pour verifier. Si groups sales: pcie_acs_override=downstream,multifunction (dernier recours)")
+
+            # ── KERNEL TWEAKS ──
+            _, stdout, _ = ssh.exec_command("cat /proc/sys/vm/swappiness 2>/dev/null", timeout=5)
+            swappiness = stdout.read().decode().strip()
+            swap_val = int(swappiness) if swappiness.isdigit() else 60
+            chk("Systeme Kernel", nn, f"vm.swappiness ({swap_val})",
+                swap_val <= 10,
+                f"swappiness={swap_val}",
+                "Reduire a 10 ou 1 pour eviter le swap inutile quand il y a de la RAM",
+                "echo 'vm.swappiness=10' >> /etc/sysctl.conf && sysctl -p")
+
+            # Hugepages
+            _, stdout, _ = ssh.exec_command("cat /proc/meminfo 2>/dev/null | grep HugePages_Total", timeout=5)
+            hp = stdout.read().decode().strip()
+            hp_total = 0
+            if hp:
+                try:
+                    hp_total = int(hp.split(":")[1].strip())
+                except (ValueError, IndexError):
+                    pass
+            chk("Systeme Kernel", nn, "Hugepages",
+                True,  # informational
+                f"{hp_total} pages" if hp_total > 0 else "Non configure",
+                "Activer hugepages (2M/1G) pour VMs memoire-intensive ameliore les performances TLB",
+                "echo 'vm.nr_hugepages=1024' >> /etc/sysctl.conf (pour 2GB de hugepages 2M)")
+
+            # VFIO modules
+            _, stdout, _ = ssh.exec_command("lsmod 2>/dev/null | grep vfio | head -5", timeout=5)
+            vfio = stdout.read().decode().strip()
+            chk("IOMMU/Passthrough", nn, "Modules VFIO charges",
+                True,
+                "Charges" if vfio else "Non charges (normal si pas de passthrough)",
+                "VFIO necessaire pour PCI passthrough. Charger vfio-pci, vfio_iommu_type1",
+                "echo 'vfio\nvfio_iommu_type1\nvfio_pci\nvfio_virqfd' >> /etc/modules && update-initramfs -u")
+
+            # CSM check (UEFI boot)
+            _, stdout, _ = ssh.exec_command("[ -d /sys/firmware/efi ] && echo 'UEFI' || echo 'BIOS'", timeout=5)
+            boot_type = stdout.read().decode().strip()
+            chk("BIOS/UEFI", nn, "Boot UEFI (CSM desactive)",
+                boot_type == "UEFI",
+                boot_type,
+                "Desactiver CSM dans le BIOS pour boot UEFI pur. Necessaire pour Secure Boot",
+                "BIOS > Boot > CSM: Disabled. Reinstaller Proxmox en mode UEFI si necessaire.")
+
+            # Services inutiles (standalone check)
+            _, stdout, _ = ssh.exec_command("systemctl is-active pve-ha-crm pve-ha-lrm corosync 2>/dev/null", timeout=5)
+            ha_services = stdout.read().decode().strip().split("\n")
+            # Only flag if single node without HA
+            if cluster_info.get("total_nodes", 3) == 1:
+                if all(s == "active" for s in ha_services):
+                    chk("Systeme", nn, "Services HA sur noeud standalone",
+                        False, "HA actif sur noeud unique",
+                        "Desactiver HA/Corosync sur un noeud standalone pour economiser des ressources",
+                        "systemctl disable --now pve-ha-crm pve-ha-lrm corosync (noeud standalone uniquement !)")
+
+            # ── NUMA HOST ──
+            _, stdout, _ = ssh.exec_command("lscpu 2>/dev/null | grep 'NUMA node(s)'", timeout=5)
+            numa_out = stdout.read().decode().strip()
+            numa_nodes = 1
+            try:
+                numa_nodes = int(numa_out.split(":")[1].strip())
+            except (ValueError, IndexError):
+                pass
+            if numa_nodes > 1:
+                chk("CPU NUMA", nn, f"Hote multi-NUMA ({numa_nodes} noeuds)",
+                    True, f"{numa_nodes} noeuds NUMA",
+                    "Hote multi-socket/NUMA: activer NUMA sur les VMs pour optimiser l'acces memoire",
+                    "VM > Hardware > Processors > Enable NUMA. Aligner les vCPU aux noeuds NUMA physiques.")
+
+            ssh.close()
+
         except Exception:
-            pass  # SSH failed, skip ZFS checks silently
+            pass  # SSH failed, skip checks silently
 
         # ── VM-LEVEL CHECKS ──
         vms = proxmox_api(host, f"/nodes/{nn}/qemu")
@@ -1511,6 +1712,64 @@ def api_optimizations():
                 "Actif" if agent and str(agent) != "0" else "Desactive",
                 "Shutdown propre, freeze FS, affichage IP",
                 "VM > Options > QEMU Guest Agent: Enable. Installer qemu-guest-agent dans la VM.")
+
+            # ── WINDOWS-SPECIFIC ──
+            ostype = cfg.get("ostype", "")
+            is_windows = ostype in ("win11", "win10", "win8", "win7", "wvista", "wxp", "w2k22", "w2k19", "w2k16", "w2k12", "w2k8")
+
+            if is_windows:
+                # Nested virt for Credential Guard / HVCI
+                cpu_str = str(cfg.get("cpu", ""))
+                has_nested = "host" in cpu_type or "+vmx" in cpu_str
+                chk("VM Windows", target, "Nested Virtualization (Credential Guard / HVCI)",
+                    has_nested,
+                    "Actif (type=host ou +vmx)" if has_nested else "Desactive",
+                    "Necessaire pour Credential Guard, Device Guard, HVCI, WSL2, Hyper-V inside",
+                    "VM > Hardware > Processors > Type: host (ou ajouter flag +vmx)")
+
+                # Windows CPU flags
+                has_pcid = "+pcid" in cpu_str
+                has_spec = "+spec-ctrl" in cpu_str or "+ssbd" in cpu_str
+                chk("VM Windows", target, "CPU flags securite (pcid, spec-ctrl, ssbd)",
+                    has_pcid and has_spec,
+                    cpu_str[:60] if cpu_str else cpu_type,
+                    "Ajouter +pcid,+spec-ctrl,+ssbd pour Spectre/Meltdown mitigation",
+                    "VM > Hardware > Processors > Extra CPU Flags: +pcid,+spec-ctrl,+ssbd")
+
+                # VirtIO drivers check (Windows needs special drivers)
+                has_virtio_disk = any(k.startswith("scsi") or k.startswith("virtio") for k in cfg if isinstance(cfg.get(k), str) and ":" in cfg[k] and "media" not in cfg.get(k, ""))
+                chk("VM Windows", target, "Disque VirtIO (drivers requis)",
+                    has_virtio_disk,
+                    "VirtIO" if has_virtio_disk else "IDE/SATA",
+                    "VirtIO SCSI avec drivers virtio-win pour meilleures performances",
+                    "Installer virtio-win ISO, puis migrer disques vers SCSI VirtIO")
+
+                # TPM for Windows 11
+                has_tpm = any(k.startswith("tpmstate") for k in cfg)
+                if ostype == "win11":
+                    chk("VM Windows", target, "TPM 2.0 (requis Win11)",
+                        has_tpm,
+                        "Present" if has_tpm else "Absent",
+                        "Windows 11 requiert TPM 2.0. Ajouter un TPM virtuel.",
+                        "VM > Hardware > Add > TPM State")
+
+                # Hyper-V enlightenments (auto with ostype=win*)
+                chk("VM Windows", target, "Hyper-V Enlightenments",
+                    ostype.startswith("win"),
+                    f"ostype={ostype} (active auto)",
+                    "Les enlightenments Hyper-V ameliorent les performances Windows de 10-30%",
+                    "VM > Options > OS Type: selecteur Windows correct")
+
+            # ── PCI PASSTHROUGH ──
+            pci_devices = [k for k in cfg if k.startswith("hostpci")]
+            if pci_devices:
+                for pci_key in pci_devices:
+                    pci_val = str(cfg.get(pci_key, ""))
+                    has_allf = "all-functions" in pci_val or "x-vga" in pci_val
+                    chk("VM Passthrough", target, f"{pci_key}: PCI passthrough",
+                        True, pci_val[:50],
+                        "Verifier que le device est dans un groupe IOMMU propre",
+                        "VM > Hardware > PCI Device. Utiliser 'All Functions' pour multi-function.")
 
         # ── CT CHECKS ──
         cts = proxmox_api(host, f"/nodes/{nn}/lxc")
@@ -2050,6 +2309,47 @@ def api_architecture():
                 nd["mtu"] = int(mtu_match.group(1))
                 nd["jumbo_frames"] = nd["mtu"] >= 9000
 
+            # NTP / Chrony
+            _, stdout, _ = ssh.exec_command("chronyc tracking 2>/dev/null", timeout=5)
+            chrony_out = stdout.read().decode("utf-8", errors="replace")
+            nd["ntp"] = {"active": False, "synced": False, "drift": "N/A", "stratum": 0,
+                         "source": "", "sources_count": 0}
+            if chrony_out:
+                nd["ntp"]["active"] = True
+                for line in chrony_out.split("\n"):
+                    if "System time" in line:
+                        import re as _re
+                        m = _re.search(r'([\d.]+) seconds', line)
+                        if m:
+                            drift_s = float(m.group(1))
+                            if drift_s < 0.001:
+                                nd["ntp"]["drift"] = f"{drift_s*1000000:.0f} us"
+                            elif drift_s < 1:
+                                nd["ntp"]["drift"] = f"{drift_s*1000:.1f} ms"
+                            else:
+                                nd["ntp"]["drift"] = f"{drift_s:.2f} s"
+                            nd["ntp"]["drift_seconds"] = drift_s
+                            nd["ntp"]["synced"] = drift_s < 1
+                    if "Stratum" in line:
+                        try:
+                            nd["ntp"]["stratum"] = int(line.split(":")[1].strip())
+                        except (ValueError, IndexError):
+                            pass
+                    if "Reference ID" in line:
+                        nd["ntp"]["source"] = line.split("(")[1].rstrip(")") if "(" in line else line.split(":")[1].strip()
+
+            _, stdout, _ = ssh.exec_command("chronyc sources 2>/dev/null | grep '\\^' | wc -l", timeout=5)
+            count = stdout.read().decode().strip()
+            nd["ntp"]["sources_count"] = int(count) if count.isdigit() else 0
+
+            # Corosync token (from config)
+            _, stdout, _ = ssh.exec_command("grep -A2 'totem' /etc/corosync/corosync.conf 2>/dev/null | grep token", timeout=5)
+            token_line = stdout.read().decode().strip()
+            if token_line and ":" in token_line:
+                nd["corosync_token"] = token_line.split(":")[1].strip()
+            else:
+                nd["corosync_token"] = "1000 (defaut)"
+
             # ZFS tuning
             _, stdout, _ = ssh.exec_command("cat /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null", timeout=5)
             arc_max = stdout.read().decode().strip()
@@ -2465,6 +2765,978 @@ def api_install_agent():
     except Exception as e:
         log(f"Erreur: {e}")
         return jsonify({"success": False, "error": str(e), "log": log_lines})
+
+
+# ── God Mode (VM actions) ───────────────────────────────────────────────────
+
+@app.route("/api/vm/action", methods=["POST"])
+def api_vm_action():
+    """Execute une action sur une VM/CT (start, stop, kill, delete)."""
+    data = flask_request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "Donnees manquantes"}), 400
+
+    node = data.get("node", "").strip()
+    vmid = data.get("vmid", "")
+    action = data.get("action", "").strip()
+    vm_type = data.get("type", "qemu").strip()  # qemu or lxc
+
+    if not node or not vmid or not action:
+        return jsonify({"success": False, "error": "node, vmid et action requis"}), 400
+
+    host_api, ticket, csrf = get_ticket()
+    if not host_api:
+        return jsonify({"success": False, "error": "Non connecte"}), 503
+
+    # Find actual host for this node
+    node_ip = None
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node" and item.get("name") == node:
+                node_ip = item.get("ip")
+
+    target_host = node_ip or host_api
+    base = f"https://{target_host}:{PROXMOX_CLUSTER['port']}/api2/json/nodes/{node}/{vm_type}/{vmid}"
+
+    cookies = {"PVEAuthCookie": ticket}
+    headers = {"CSRFPreventionToken": csrf}
+
+    try:
+        if action == "start":
+            r = requests.post(f"{base}/status/start", headers=headers, cookies=cookies, verify=False, timeout=10)
+        elif action == "shutdown":
+            r = requests.post(f"{base}/status/shutdown", headers=headers, cookies=cookies, verify=False, timeout=10)
+        elif action == "stop":
+            r = requests.post(f"{base}/status/stop", headers=headers, cookies=cookies, data={"skiplock": 1}, verify=False, timeout=10)
+        elif action == "reboot":
+            r = requests.post(f"{base}/status/reboot", headers=headers, cookies=cookies, verify=False, timeout=10)
+        elif action == "reset":
+            r = requests.post(f"{base}/status/reset", headers=headers, cookies=cookies, data={"skiplock": 1}, verify=False, timeout=10)
+        elif action == "delete":
+            # Must be stopped first
+            status_r = requests.get(f"{base}/status/current", headers=headers, cookies=cookies, verify=False, timeout=5)
+            if status_r.status_code == 200:
+                vm_status = status_r.json().get("data", {}).get("status", "")
+                if vm_status == "running":
+                    # Force stop first
+                    requests.post(f"{base}/status/stop", headers=headers, cookies=cookies, data={"skiplock": 1}, verify=False, timeout=10)
+                    time.sleep(5)
+            r = requests.delete(f"{base}", headers=headers, cookies=cookies, params={"purge": 1, "destroy-unreferenced-disks": 1, "skiplock": 1}, verify=False, timeout=10)
+        else:
+            return jsonify({"success": False, "error": f"Action inconnue: {action}"}), 400
+
+        if r.status_code == 200:
+            # Invalidate status cache
+            with _status_cache["lock"]:
+                _status_cache["time"] = 0
+            return jsonify({"success": True, "message": f"Action '{action}' executee sur VM {vmid}", "upid": r.json().get("data", "")})
+        else:
+            error_msg = r.json().get("message", r.text[:200]) if r.headers.get("content-type", "").startswith("application/json") else r.text[:200]
+            return jsonify({"success": False, "error": error_msg})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+# ── Pre-replication check ───────────────────────────────────────────────────
+
+@app.route("/api/replication-check", methods=["POST"])
+def api_replication_check():
+    """Analyse les prerequis de replication entre deux noeuds."""
+    data = flask_request.get_json()
+    source = data.get("source", "").strip()
+    target = data.get("target", "").strip()
+
+    if not source or not target:
+        return jsonify({"error": "Source et destination requis"}), 400
+    if source == target:
+        return jsonify({"error": "Source et destination doivent etre differents"}), 400
+
+    host_api, ticket, _ = get_ticket()
+    if not host_api:
+        return jsonify({"error": "Non connecte"}), 503
+
+    checks = []
+    blockers = 0
+    warnings = 0
+
+    def chk(name, ok, detail, severity="blocker"):
+        nonlocal blockers, warnings
+        if not ok:
+            if severity == "blocker":
+                blockers += 1
+            else:
+                warnings += 1
+        checks.append({"name": name, "ok": ok, "detail": detail, "severity": severity})
+
+    # Get node IPs
+    node_ips = {}
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node":
+                node_ips[item.get("name")] = item.get("ip")
+
+    # Check nodes are online
+    nodes = proxmox_api(host_api, "/nodes")
+    if not isinstance(nodes, list):
+        return jsonify({"error": "Impossible de lister les noeuds"}), 503
+
+    src_online = any(n.get("node") == source and n.get("status") == "online" for n in nodes)
+    tgt_online = any(n.get("node") == target and n.get("status") == "online" for n in nodes)
+    chk(f"Noeud source ({source}) en ligne", src_online, "En ligne" if src_online else "HORS LIGNE !")
+    chk(f"Noeud destination ({target}) en ligne", tgt_online, "En ligne" if tgt_online else "HORS LIGNE !")
+
+    if not src_online or not tgt_online:
+        return jsonify({"checks": checks, "blockers": blockers, "warnings": warnings,
+                        "ready": False, "summary": "Noeuds non accessibles"})
+
+    # Check via SSH on both nodes
+    results = {}
+    for node_name in [source, target]:
+        node_ip = node_ips.get(node_name)
+        if not node_ip:
+            continue
+        nd = {"zfs_available": False, "zfs_datasets": [], "storage_zfs": [],
+              "storage_types": {}, "free_space": {}, "connectivity": False,
+              "ram_free": 0, "cpu_cores": 0}
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                        password=PROXMOX_CLUSTER["password"], timeout=5)
+
+            # ZFS available?
+            _, stdout, _ = ssh.exec_command("which zfs 2>/dev/null && zfs list -t filesystem -H -o name 2>/dev/null", timeout=5)
+            zfs_out = stdout.read().decode().strip()
+            nd["zfs_available"] = bool(zfs_out) and "/zfs" not in zfs_out  # not just the binary path
+            _, stdout, _ = ssh.exec_command("zfs list -t filesystem -H -o name,used,avail 2>/dev/null", timeout=5)
+            datasets = stdout.read().decode().strip()
+            if datasets:
+                nd["zfs_available"] = True
+                for line in datasets.split("\n"):
+                    parts = line.split("\t")
+                    if len(parts) >= 3:
+                        nd["zfs_datasets"].append({"name": parts[0], "used": parts[1], "avail": parts[2]})
+
+            # Storage types
+            _, stdout, _ = ssh.exec_command("pvesm status 2>/dev/null", timeout=5)
+            pvesm = stdout.read().decode().strip()
+            for line in pvesm.split("\n")[1:]:
+                parts = line.split()
+                if len(parts) >= 6:
+                    sname = parts[0]
+                    stype = parts[1]
+                    nd["storage_types"][sname] = stype
+                    try:
+                        nd["free_space"][sname] = int(parts[5]) * 1024  # KiB to bytes
+                    except (ValueError, IndexError):
+                        pass
+
+            # Network connectivity to other node
+            other_ip = node_ips.get(target if node_name == source else source)
+            if other_ip:
+                _, stdout, _ = ssh.exec_command(f"ping -c 2 -W 2 {other_ip} 2>/dev/null | tail -1", timeout=10)
+                ping_out = stdout.read().decode().strip()
+                nd["connectivity"] = "0% packet loss" in ping_out or "avg" in ping_out
+
+            # RAM and CPU
+            ns = proxmox_api(host_api, f"/nodes/{node_name}/status")
+            if isinstance(ns, dict) and "error" not in ns:
+                nd["ram_free"] = ns.get("memory", {}).get("free", 0)
+                nd["cpu_cores"] = ns.get("cpuinfo", {}).get("cpus", 0)
+
+            ssh.close()
+        except Exception as e:
+            chk(f"Connexion SSH a {node_name}", False, str(e))
+
+        results[node_name] = nd
+
+    src = results.get(source, {})
+    tgt = results.get(target, {})
+
+    # ── ZFS CHECKS (required for replication) ──
+    chk(f"ZFS disponible sur {source}",
+        src.get("zfs_available", False),
+        f"{len(src.get('zfs_datasets',[]))} datasets" if src.get("zfs_available") else "PAS DE ZFS ! La replication Proxmox necessite ZFS.",
+        "blocker")
+
+    chk(f"ZFS disponible sur {target}",
+        tgt.get("zfs_available", False),
+        f"{len(tgt.get('zfs_datasets',[]))} datasets" if tgt.get("zfs_available") else "PAS DE ZFS ! La replication Proxmox necessite ZFS.",
+        "blocker")
+
+    # Storage compatibility
+    src_storages = set(src.get("storage_types", {}).keys())
+    tgt_storages = set(tgt.get("storage_types", {}).keys())
+    common = src_storages & tgt_storages
+    chk("Stockages communs entre source et destination",
+        len(common) > 0,
+        f"Communs: {', '.join(common)}" if common else f"Source: {', '.join(src_storages)} | Dest: {', '.join(tgt_storages)}",
+        "blocker")
+
+    # ZFS storage specifically
+    src_zfs_sto = [s for s, t in src.get("storage_types", {}).items() if t in ("zfspool", "zfs")]
+    tgt_zfs_sto = [s for s, t in tgt.get("storage_types", {}).items() if t in ("zfspool", "zfs")]
+    chk(f"Stockage ZFS sur {source}",
+        len(src_zfs_sto) > 0 or src.get("zfs_available"),
+        f"ZFS storages: {', '.join(src_zfs_sto)}" if src_zfs_sto else "Aucun storage ZFS (LVM-thin n'est PAS compatible replication)",
+        "blocker" if not src.get("zfs_available") else "warning")
+
+    chk(f"Stockage ZFS sur {target}",
+        len(tgt_zfs_sto) > 0 or tgt.get("zfs_available"),
+        f"ZFS storages: {', '.join(tgt_zfs_sto)}" if tgt_zfs_sto else "Aucun storage ZFS sur la destination",
+        "blocker" if not tgt.get("zfs_available") else "warning")
+
+    # Network connectivity
+    chk(f"Connectivite reseau {source} → {target}",
+        src.get("connectivity", False),
+        "Ping OK" if src.get("connectivity") else "ECHEC PING ! Verifier le reseau.",
+        "blocker")
+
+    chk(f"Connectivite reseau {target} → {source}",
+        tgt.get("connectivity", False),
+        "Ping OK" if tgt.get("connectivity") else "ECHEC PING !",
+        "blocker")
+
+    # Free space on target
+    for sname, free in tgt.get("free_space", {}).items():
+        chk(f"Espace libre sur {target}/{sname}",
+            free > 10 * 1024**3,
+            fmt_bytes(free),
+            "warning" if free > 5 * 1024**3 else "blocker")
+
+    # RAM available
+    chk(f"RAM libre sur {target}",
+        tgt.get("ram_free", 0) > 1024**3,
+        fmt_bytes(tgt.get("ram_free", 0)),
+        "warning")
+
+    # VMs on source that could be replicated
+    vms = proxmox_api(host_api, f"/nodes/{source}/qemu")
+    vm_list = []
+    if isinstance(vms, list):
+        for vm in vms:
+            vmid = vm.get("vmid")
+            vm_name = vm.get("name", f"VM {vmid}")
+            vm_cfg = proxmox_api(host_api, f"/nodes/{source}/qemu/{vmid}/config")
+            disks_on_zfs = False
+            disk_info = []
+            if isinstance(vm_cfg, dict):
+                for k, v in vm_cfg.items():
+                    if isinstance(v, str) and ":" in v and "media" not in v:
+                        if any(k.startswith(p) for p in ("scsi", "virtio", "ide", "sata", "efidisk")):
+                            storage = v.split(":")[0]
+                            stype = src.get("storage_types", {}).get(storage, "unknown")
+                            on_zfs = stype in ("zfspool", "zfs")
+                            disk_info.append({"disk": k, "storage": storage, "type": stype, "zfs": on_zfs})
+                            if on_zfs:
+                                disks_on_zfs = True
+
+            vm_list.append({"vmid": vmid, "name": vm_name, "status": vm.get("status"),
+                           "disks": disk_info, "replicable": disks_on_zfs})
+
+    ready = blockers == 0
+    summary = "Pret pour la replication" if ready else f"{blockers} probleme(s) bloquant(s)"
+    if not ready and not src.get("zfs_available") and not tgt.get("zfs_available"):
+        summary = "BLOQUANT: La replication Proxmox necessite ZFS sur les deux noeuds. Vos noeuds utilisent LVM-thin."
+
+    return jsonify({
+        "checks": checks,
+        "blockers": blockers,
+        "warnings": warnings,
+        "ready": ready,
+        "summary": summary,
+        "vms": vm_list,
+        "source": source,
+        "target": target,
+    })
+
+
+# ── Ceph Wizard ─────────────────────────────────────────────────────────────
+
+@app.route("/ceph-wizard")
+def ceph_wizard():
+    return render_template("ceph-wizard.html")
+
+
+@app.route("/api/ceph/scan")
+def api_ceph_scan():
+    """Scan complet du cluster pour le wizard Ceph."""
+    host_api, ticket, _ = get_ticket()
+    if not host_api:
+        return jsonify({"error": "Non connecte"}), 503
+
+    result = {"nodes": [], "cluster": {}, "checks": [], "ready": True}
+
+    # Cluster info
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    node_ips = {}
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "cluster":
+                result["cluster"]["name"] = item.get("name")
+                result["cluster"]["quorate"] = bool(item.get("quorate"))
+                result["cluster"]["nodes_count"] = item.get("nodes")
+            elif item.get("type") == "node":
+                node_ips[item.get("name")] = item.get("ip")
+
+    nodes_list = proxmox_api(host_api, "/nodes")
+    if not isinstance(nodes_list, list):
+        return jsonify({"error": "Impossible de lister les noeuds"}), 503
+
+    for node in sorted(nodes_list, key=lambda n: n.get("node", "")):
+        nn = node.get("node", "")
+        node_ip = node_ips.get(nn, "")
+        nd = {
+            "name": nn, "ip": node_ip,
+            "online": node.get("status") == "online",
+            "cpu_cores": 0, "ram_total_gb": 0, "ram_free_gb": 0,
+            "pve_version": "", "ceph_installed": False, "ceph_version": "",
+            "ntp_synced": False, "ntp_drift": "",
+            "disks": [], "free_disks": [],
+            "interfaces": [], "mtu": 1500,
+        }
+
+        if not nd["online"] or not node_ip:
+            result["nodes"].append(nd)
+            continue
+
+        # Get node status via API
+        ns = proxmox_api(host_api, f"/nodes/{nn}/status")
+        if isinstance(ns, dict) and "error" not in ns:
+            nd["cpu_cores"] = ns.get("cpuinfo", {}).get("cpus", 0)
+            nd["ram_total_gb"] = round(ns.get("memory", {}).get("total", 0) / (1024**3), 1)
+            nd["ram_free_gb"] = round(ns.get("memory", {}).get("free", 0) / (1024**3), 1)
+            nd["pve_version"] = ns.get("pveversion", "")
+
+        # Detailed scan via SSH
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(node_ip,
+                        username=PROXMOX_CLUSTER["username"].split("@")[0],
+                        password=PROXMOX_CLUSTER["password"], timeout=5)
+
+            # Ceph installed?
+            _, stdout, _ = ssh.exec_command("dpkg -l ceph-mon 2>/dev/null | grep -c '^ii'", timeout=5)
+            nd["ceph_installed"] = stdout.read().decode().strip() == "1"
+
+            _, stdout, _ = ssh.exec_command("ceph -v 2>/dev/null", timeout=5)
+            nd["ceph_version"] = stdout.read().decode().strip()
+
+            # NTP
+            _, stdout, _ = ssh.exec_command("chronyc tracking 2>/dev/null | grep 'System time'", timeout=5)
+            ntp_line = stdout.read().decode().strip()
+            if ntp_line:
+                nd["ntp_synced"] = True
+                import re
+                m = re.search(r'([\d.]+) seconds', ntp_line)
+                if m:
+                    drift = float(m.group(1))
+                    nd["ntp_drift"] = f"{drift*1000:.1f} ms"
+                    if drift > 0.5:
+                        nd["ntp_synced"] = False
+
+            # Disks
+            _, stdout, _ = ssh.exec_command(
+                "lsblk -J -o NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,ROTA,MODEL -p 2>/dev/null", timeout=5)
+            try:
+                import json as _json
+                disk_data = _json.loads(stdout.read().decode())
+                for bd in disk_data.get("blockdevices", []):
+                    if bd.get("type") != "disk" or bd.get("name", "").startswith("/dev/sr"):
+                        continue
+                    children = bd.get("children", [])
+                    has_mount = any(c.get("mountpoint") for c in children)
+                    has_fs = any(c.get("fstype") for c in children)
+                    disk_info = {
+                        "name": bd["name"],
+                        "size": bd.get("size", ""),
+                        "rotational": bd.get("rota", True),
+                        "type": "HDD" if bd.get("rota") else "SSD/NVMe",
+                        "model": bd.get("model", ""),
+                        "partitions": len(children),
+                        "mounted": has_mount,
+                        "has_fs": has_fs,
+                        "available": not has_mount and len(children) == 0,
+                        "usable_for_osd": not has_mount,
+                    }
+                    nd["disks"].append(disk_info)
+                    if disk_info["available"]:
+                        nd["free_disks"].append(disk_info)
+            except Exception:
+                pass
+
+            # Network interfaces
+            _, stdout, _ = ssh.exec_command("ip -j addr show 2>/dev/null", timeout=5)
+            try:
+                import json as _json
+                net_data = _json.loads(stdout.read().decode())
+                for iface in net_data:
+                    if iface.get("operstate") != "UP" or iface.get("ifname", "").startswith("lo"):
+                        continue
+                    addrs = [a["local"] for a in iface.get("addr_info", []) if a.get("family") == "inet"]
+                    nd["interfaces"].append({
+                        "name": iface["ifname"],
+                        "ips": addrs,
+                        "mtu": iface.get("mtu", 1500),
+                    })
+                    if iface.get("ifname") == "vmbr0":
+                        nd["mtu"] = iface.get("mtu", 1500)
+            except Exception:
+                pass
+
+            ssh.close()
+        except Exception:
+            pass
+
+        result["nodes"].append(nd)
+
+    # ── Pre-flight checks ──
+    online_nodes = [n for n in result["nodes"] if n["online"]]
+
+    # Min 3 nodes
+    if len(online_nodes) < 3:
+        result["checks"].append({"level": "critical", "msg": f"Seulement {len(online_nodes)} noeuds en ligne. Ceph requiert minimum 3."})
+        result["ready"] = False
+    else:
+        result["checks"].append({"level": "ok", "msg": f"{len(online_nodes)} noeuds en ligne"})
+
+    # Quorum
+    if not result["cluster"].get("quorate"):
+        result["checks"].append({"level": "critical", "msg": "Quorum perdu ! Impossible de deployer Ceph."})
+        result["ready"] = False
+    else:
+        result["checks"].append({"level": "ok", "msg": "Quorum OK"})
+
+    # NTP
+    for n in online_nodes:
+        if not n["ntp_synced"]:
+            result["checks"].append({"level": "warning", "msg": f"{n['name']}: NTP non synchronise (drift: {n['ntp_drift']})"})
+
+    # PVE version homogeneity
+    versions = set(n["pve_version"].split("/")[1] if "/" in n.get("pve_version", "") else "" for n in online_nodes)
+    versions.discard("")
+    if len(versions) > 1:
+        result["checks"].append({"level": "warning", "msg": f"Versions PVE heterogenes: {', '.join(versions)}"})
+    else:
+        result["checks"].append({"level": "ok", "msg": f"Version PVE homogene"})
+
+    # RAM per node
+    for n in online_nodes:
+        if n["ram_total_gb"] < 8:
+            result["checks"].append({"level": "warning", "msg": f"{n['name']}: RAM faible ({n['ram_total_gb']} GB). 8+ GB recommande."})
+
+    # Network
+    for n in online_nodes:
+        if n["mtu"] < 9000:
+            result["checks"].append({"level": "info", "msg": f"{n['name']}: MTU {n['mtu']} (jumbo frames 9000 recommande pour Ceph)"})
+
+    # Available disks
+    total_free = sum(len(n["free_disks"]) for n in online_nodes)
+    if total_free == 0:
+        result["checks"].append({"level": "warning", "msg": "Aucun disque vierge disponible. Les OSD necessitent des disques dedies."})
+    else:
+        result["checks"].append({"level": "ok", "msg": f"{total_free} disque(s) disponible(s) pour OSD"})
+
+    return jsonify(result)
+
+
+@app.route("/api/ceph/purge-all", methods=["POST"])
+def api_ceph_purge_all():
+    """Purge Ceph sur tous les noeuds du cluster."""
+    host_api, ticket, _ = get_ticket()
+    if not host_api:
+        return jsonify({"error": "Non connecte"}), 503
+
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    node_ips = {}
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node":
+                node_ips[item.get("name")] = item.get("ip")
+
+    log = []
+    for nn, node_ip in sorted(node_ips.items()):
+        if not node_ip:
+            continue
+        log.append(f"Purge sur {nn} ({node_ip})...")
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                        password=PROXMOX_CLUSTER["password"], timeout=10)
+            _, stdout, _ = ssh.exec_command(
+                'systemctl stop ceph.target 2>/dev/null; sleep 2; '
+                'killall -9 ceph-mon ceph-mgr ceph-osd 2>/dev/null; sleep 1; '
+                'umount /var/lib/ceph/osd/* 2>/dev/null; '
+                'for dm in /dev/mapper/ceph-*; do [ -b "$dm" ] && dmsetup remove "$dm" 2>/dev/null; done; '
+                'dmsetup remove_all 2>/dev/null; '
+                'for vg in $(vgs --noheadings -o vg_name 2>/dev/null | grep ceph); do vgremove -ff $vg 2>/dev/null; done; '
+                'for DISK in /dev/sd? /dev/vd?; do '
+                '  HM=0; for P in ${DISK}*; do [ "$P" = "$DISK" ] && continue; '
+                '  MP=$(lsblk -n -o MOUNTPOINT "$P" 2>/dev/null | head -1); [ -n "$MP" ] && HM=1 && break; done; '
+                '  [ "$HM" -eq 0 ] && { pvremove -ff "$DISK" 2>/dev/null; wipefs -af "$DISK" 2>/dev/null; '
+                '  sgdisk --zap-all "$DISK" 2>/dev/null; dd if=/dev/zero of="$DISK" bs=1M count=200 2>/dev/null; }; '
+                'done; '
+                'rm -rf /var/lib/ceph /tmp/ceph* /tmp/monmap* 2>/dev/null; '
+                'rm -f /etc/pve/ceph.conf /etc/pve/priv/ceph.* /etc/ceph/ceph.client.admin.keyring 2>/dev/null; '
+                'rm -rf /etc/pve/ceph/ /etc/systemd/system/ceph-mon@.service.d '
+                '/etc/systemd/system/ceph-osd@.service.d /etc/systemd/system/ceph-mgr@.service.d 2>/dev/null; '
+                'apt-get purge -y ceph-mon ceph-mgr ceph-osd ceph-base ceph-volume ceph-mds 2>/dev/null; '
+                'apt-get autoremove -y 2>/dev/null; apt-get install -y ceph-common ceph-fuse 2>/dev/null; '
+                'partprobe 2>/dev/null; udevadm settle 2>/dev/null; systemctl daemon-reload 2>/dev/null; '
+                'echo PURGED', timeout=180)
+            out = stdout.read().decode("utf-8", "replace").strip()
+            log.append(f"  {nn}: {'OK' if 'PURGED' in out else out[-100:]}")
+            ssh.close()
+        except Exception as e:
+            log.append(f"  {nn}: Erreur - {e}")
+
+    # Remove PVE storages
+    cookies = {"PVEAuthCookie": ticket}
+    headers = {"CSRFPreventionToken": csrf}
+    for s in ["ceph-vm", "ceph-pool"]:
+        try:
+            requests.delete(f"https://{host_api}:{PROXMOX_CLUSTER['port']}/api2/json/storage/{s}",
+                           headers=headers, cookies=cookies, verify=False, timeout=10)
+        except Exception:
+            pass
+
+    log.append("Purge terminee sur tous les noeuds.")
+    return jsonify({"success": True, "log": log})
+
+
+@app.route("/api/ceph/install", methods=["POST"])
+def api_ceph_install():
+    """Execute une etape du wizard Ceph."""
+    data = flask_request.get_json()
+    step = data.get("step", "")
+    nodes = data.get("nodes", [])
+    config = data.get("config", {})
+
+    host_api, ticket, csrf = get_ticket()
+    if not host_api:
+        return jsonify({"error": "Non connecte"}), 503
+
+    # Get node IPs
+    cluster_status = proxmox_api(host_api, "/cluster/status")
+    node_ips = {}
+    if isinstance(cluster_status, list):
+        for item in cluster_status:
+            if item.get("type") == "node":
+                node_ips[item.get("name")] = item.get("ip")
+
+    cookies = {"PVEAuthCookie": ticket}
+    headers = {"CSRFPreventionToken": csrf}
+    log = []
+
+    try:
+        if step == "install_ceph":
+            # Step 1: Install Ceph on all selected nodes via SSH
+            ceph_ver = config.get("ceph_version", "squid")
+            for nn in nodes:
+                node_ip = node_ips.get(nn)
+                if not node_ip:
+                    continue
+                log.append(f"Installation de Ceph sur {nn} (version {ceph_ver})...")
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(node_ip,
+                                username=PROXMOX_CLUSTER["username"].split("@")[0],
+                                password=PROXMOX_CLUSTER["password"], timeout=10)
+                    # Check if already installed
+                    _, stdout, _ = ssh.exec_command("dpkg -l ceph-mon 2>/dev/null | grep -c '^ii'", timeout=5)
+                    already = stdout.read().decode().strip() == "1"
+                    if already:
+                        log.append(f"  {nn}: Ceph deja installe, skip")
+                    else:
+                        log.append(f"  {nn}: pveceph install --version {ceph_ver} (peut prendre quelques minutes)...")
+                        # Fix repos first (ensure no-subscription + ceph repo)
+                    ssh.exec_command(
+                        f'echo "deb http://download.proxmox.com/debian/ceph-{ceph_ver} trixie no-subscription" > /etc/apt/sources.list.d/ceph.list && '
+                        'for f in /etc/apt/sources.list.d/*enterprise*; do [ -f "$f" ] && mv "$f" "${f}.disabled"; done 2>/dev/null; '
+                        'apt-get update -qq 2>/dev/null',
+                        timeout=30)
+                    time.sleep(2)
+                    # Install via apt (more reliable than pveceph install)
+                    _, stdout, stderr = ssh.exec_command(
+                        "DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades "
+                        "ceph-mon ceph-mgr ceph-osd ceph-volume 2>&1",
+                        timeout=600)
+                    out = stdout.read().decode("utf-8", "replace").strip()
+                    err = stderr.read().decode("utf-8", "replace").strip()
+                    if "error" in (out + err).lower():
+                        log.append(f"  {nn}: ERREUR - {(out + err)[:300]}")
+                    else:
+                        log.append(f"  {nn}: Installation terminee")
+                        # Show last lines
+                        for line in (out + err).split("\n")[-3:]:
+                            if line.strip():
+                                log.append(f"    {line.strip()}")
+                    ssh.close()
+                except Exception as e:
+                    log.append(f"  {nn}: Erreur SSH - {e}")
+
+        elif step == "fix_permissions":
+            # Fix PVE 9 permissions bug on all nodes
+            for nn in nodes:
+                node_ip = node_ips.get(nn)
+                if not node_ip:
+                    continue
+                log.append(f"Fix permissions sur {nn}...")
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                                password=PROXMOX_CLUSTER["password"], timeout=10)
+                    _, stdout, _ = ssh.exec_command(
+                        'usermod -aG www-data ceph 2>/dev/null; '
+                        'mkdir -p /etc/systemd/system/ceph-mon@.service.d; '
+                        'echo -e "[Service]\\nExecStart=\\nExecStart=/usr/bin/ceph-mon -f --cluster \\${CLUSTER} --id %i --setuser ceph --setgroup www-data" > /etc/systemd/system/ceph-mon@.service.d/override.conf; '
+                        'mkdir -p /etc/systemd/system/ceph-osd@.service.d; '
+                        'echo -e "[Service]\\nExecStart=\\nExecStart=/usr/bin/ceph-osd -f --cluster \\${CLUSTER} --id %i --setuser ceph --setgroup www-data" > /etc/systemd/system/ceph-osd@.service.d/override.conf; '
+                        'mkdir -p /etc/systemd/system/ceph-mgr@.service.d; '
+                        'echo -e "[Service]\\nExecStart=\\nExecStart=/usr/bin/ceph-mgr -f --cluster \\${CLUSTER} --id %i --setuser ceph --setgroup www-data" > /etc/systemd/system/ceph-mgr@.service.d/override.conf; '
+                        'systemctl daemon-reload; echo DONE', timeout=30)
+                    out = stdout.read().decode("utf-8", "replace").strip()
+                    log.append(f"  {nn}: {'OK' if 'DONE' in out else out[:100]}")
+                    ssh.close()
+                except Exception as e:
+                    log.append(f"  {nn}: Erreur - {e}")
+
+        elif step == "init_ceph":
+            # Init + bootstrap first MON (validated procedure)
+            first_node = nodes[0] if nodes else ""
+            node_ip = node_ips.get(first_node, host_api)
+            network = config.get("public_network", "192.168.100.0/24")
+
+            try:
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                            password=PROXMOX_CLUSTER["password"], timeout=10)
+
+                # pveceph init
+                log.append(f"pveceph init --network {network}...")
+                _, stdout, _ = ssh.exec_command(f'pveceph init --network {network} 2>&1', timeout=30)
+                log.append(f"  {stdout.read().decode('utf-8', 'replace').strip()[:200]}")
+                time.sleep(2)
+
+                # Get FSID
+                _, stdout, _ = ssh.exec_command('python3 -c "import re; c=open(\'/etc/pve/ceph.conf\').read(); m=re.search(r\'[0-9a-f]{{8}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{4}}-[0-9a-f]{{12}}\', c); print(m.group(0) if m else \'\')"', timeout=5)
+                fsid = stdout.read().decode().strip()
+                log.append(f"  FSID: {fsid}")
+                if not fsid:
+                    ssh.close()
+                    return jsonify({"success": False, "log": log, "error": "FSID vide"})
+
+                # Bootstrap MON manually
+                log.append(f"Bootstrap MON sur {first_node}...")
+                bootstrap_cmds = [
+                    f'rm -rf /var/lib/ceph/mon/ceph-{first_node}; mkdir -p /var/lib/ceph/mon/ceph-{first_node}',
+                    'rm -f /tmp/ceph.mon.keyring /tmp/monmap',
+                    'ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon "allow *" 2>&1',
+                    'ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/pve/priv/ceph.client.admin.keyring 2>&1',
+                    'chmod 600 /tmp/ceph.mon.keyring',
+                    f'monmaptool --create --add {first_node} {node_ip} --fsid {fsid} /tmp/monmap 2>&1',
+                    f'ceph-mon --mkfs -i {first_node} --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring 2>&1',
+                    f'chown -R ceph:www-data /var/lib/ceph/mon/ceph-{first_node}',
+                    'ln -sf /etc/pve/ceph.conf /etc/ceph/ceph.conf',
+                    'cp /etc/pve/priv/ceph.client.admin.keyring /etc/ceph/ceph.client.admin.keyring 2>/dev/null',
+                ]
+                for cmd in bootstrap_cmds:
+                    ssh.exec_command(cmd, timeout=30)
+                    time.sleep(1)
+
+                # Fix ceph.conf
+                _, stdout, _ = ssh.exec_command(
+                    f'python3 -c "'
+                    f'import re; c=open(\"/etc/pve/ceph.conf\").read(); '
+                    f'c=re.sub(r\"^tmon_host.*\\n\",\"\",c,flags=re.MULTILINE); '
+                    f'c=c.replace(\"[global]\",\"[global]\\n\\tmon_host = {node_ip}\") if \"mon_host\" not in c else c; '
+                    f'c+=f\"\\n[mon.{first_node}]\\n\\tpublic_addr = {node_ip}\\n\" if \"mon.{first_node}\" not in c else \"\"; '
+                    f'open(\"/etc/pve/ceph.conf\",\"w\").write(c)"', timeout=10)
+
+                # Start MON with retries
+                log.append(f"  Demarrage MON (avec retry)...")
+                for attempt in range(4):
+                    ssh.exec_command(f'systemctl reset-failed ceph-mon@{first_node} 2>/dev/null; systemctl enable ceph-mon@{first_node} 2>/dev/null; systemctl start ceph-mon@{first_node} 2>/dev/null')
+                    time.sleep(15)
+                    _, stdout, _ = ssh.exec_command(f'systemctl is-active ceph-mon@{first_node}')
+                    status = stdout.read().decode().strip()
+                    if status == 'active':
+                        break
+
+                if status == 'active':
+                    log.append(f"  MON {first_node}: ACTIF")
+                    ssh.exec_command('ceph config set mon auth_allow_insecure_global_id_reclaim false 2>/dev/null; ceph mon enable-msgr2 2>/dev/null')
+                    time.sleep(3)
+                else:
+                    log.append(f"  MON {first_node}: ECHOUE ({status})")
+
+                ssh.close()
+            except Exception as e:
+                log.append(f"  Erreur: {e}")
+
+        elif step == "create_mon":
+            # Create MON on secondary nodes (using monmap from cluster)
+            for nn in nodes:
+                node_ip = node_ips.get(nn)
+                if not node_ip:
+                    continue
+                log.append(f"Creation MON sur {nn}...")
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                                password=PROXMOX_CLUSTER["password"], timeout=10)
+                    ssh.exec_command(f'systemctl stop ceph-mon@{nn} 2>/dev/null; rm -rf /var/lib/ceph/mon/ceph-{nn}; mkdir -p /var/lib/ceph/mon/ceph-{nn}')
+                    ssh.exec_command('ln -sf /etc/pve/ceph.conf /etc/ceph/ceph.conf; ceph auth get-or-create client.admin mon "allow *" osd "allow *" mds "allow *" mgr "allow *" > /etc/ceph/ceph.client.admin.keyring 2>/dev/null; chmod 644 /etc/ceph/ceph.client.admin.keyring')
+                    ssh.exec_command('ceph mon getmap -o /tmp/monmap.bin 2>/dev/null')
+                    time.sleep(2)
+                    ssh.exec_command(f'ceph-mon --mkfs -i {nn} --monmap /tmp/monmap.bin --keyring /etc/ceph/ceph.client.admin.keyring 2>&1')
+                    ssh.exec_command(f'chown -R ceph:www-data /var/lib/ceph/mon/ceph-{nn}')
+                    # Start with retry
+                    for attempt in range(3):
+                        ssh.exec_command(f'systemctl reset-failed ceph-mon@{nn} 2>/dev/null; systemctl enable ceph-mon@{nn} 2>/dev/null; systemctl start ceph-mon@{nn} 2>/dev/null')
+                        time.sleep(15)
+                        _, stdout, _ = ssh.exec_command(f'systemctl is-active ceph-mon@{nn}')
+                        status = stdout.read().decode().strip()
+                        if status == 'active':
+                            break
+                    log.append(f"  {nn}: {status}")
+                    ssh.close()
+                except Exception as e:
+                    log.append(f"  {nn}: Erreur - {e}")
+
+        elif step == "create_mgr":
+            # Create MGR on each node
+            for nn in nodes:
+                node_ip = node_ips.get(nn)
+                if not node_ip:
+                    continue
+                log.append(f"Creation MGR sur {nn}...")
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                                password=PROXMOX_CLUSTER["password"], timeout=10)
+                    ssh.exec_command(f'rm -rf /var/lib/ceph/mgr/ceph-{nn} 2>/dev/null; pveceph mgr create 2>&1', timeout=30)
+                    time.sleep(10)
+                    _, stdout, _ = ssh.exec_command(f'systemctl is-active ceph-mgr@{nn}')
+                    status = stdout.read().decode().strip()
+                    if status != 'active':
+                        ssh.exec_command(f'systemctl reset-failed ceph-mgr@{nn}; systemctl start ceph-mgr@{nn} 2>/dev/null')
+                        time.sleep(5)
+                        _, stdout, _ = ssh.exec_command(f'systemctl is-active ceph-mgr@{nn}')
+                        status = stdout.read().decode().strip()
+                    log.append(f"  {nn}: {status}")
+                    # Ensure bootstrap-osd keyring
+                    ssh.exec_command('ceph auth get client.bootstrap-osd > /var/lib/ceph/bootstrap-osd/ceph.keyring 2>/dev/null; chown ceph:ceph /var/lib/ceph/bootstrap-osd/ceph.keyring 2>/dev/null')
+                    ssh.close()
+                except Exception as e:
+                    log.append(f"  {nn}: Erreur - {e}")
+
+        elif step == "create_osd":
+            # Create OSD using prepare + activate (no rollback)
+            osd_map = config.get("osd_map", {})
+            for nn, disks in osd_map.items():
+                node_ip = node_ips.get(nn)
+                if not node_ip:
+                    continue
+                for disk in disks:
+                    import re as _re
+                    if not _re.match(r'^/dev/[a-z]+[0-9]*$', disk):
+                        log.append(f"  {nn}:{disk}: Chemin invalide")
+                        continue
+                    log.append(f"OSD sur {nn}:{disk}...")
+                    try:
+                        ssh = paramiko.SSHClient()
+                        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                        ssh.connect(node_ip, username=PROXMOX_CLUSTER["username"].split("@")[0],
+                                    password=PROXMOX_CLUSTER["password"], timeout=10)
+                        # Aggressive wipe
+                        log.append(f"  Wipe...")
+                        _, stdout, _ = ssh.exec_command(
+                            f'dmsetup remove_all 2>/dev/null; '
+                            f'for vg in $(pvs --noheadings -o vg_name {disk} 2>/dev/null); do vgremove -ff $vg 2>/dev/null; done; '
+                            f'pvremove -ff {disk} 2>/dev/null; wipefs -af {disk} 2>/dev/null; '
+                            f'sgdisk --zap-all {disk} 2>/dev/null; '
+                            f'dd if=/dev/zero of={disk} bs=1M count=500 2>/dev/null; '
+                            f'partprobe {disk} 2>/dev/null; udevadm settle 2>/dev/null; echo WIPE_DONE',
+                            timeout=60)
+                        stdout.read()
+                        time.sleep(5)
+                        # Prepare (no start = no rollback)
+                        log.append(f"  Prepare...")
+                        _, stdout, _ = ssh.exec_command(f'ceph-volume lvm prepare --data {disk} 2>&1', timeout=300)
+                        out = stdout.read().decode("utf-8", "replace").strip()
+                        if "successful" in out:
+                            log.append(f"  Prepare: OK")
+                        else:
+                            log.append(f"  Prepare: {out[-100:]}")
+                        time.sleep(3)
+                        # Activate
+                        log.append(f"  Activate...")
+                        ssh.exec_command('ceph-volume lvm activate --all 2>&1', timeout=30)
+                        time.sleep(5)
+                        # Start with retry
+                        osd_dirs = ssh.exec_command('ls /var/lib/ceph/osd/ 2>/dev/null')[1].read().decode().strip()
+                        for d in osd_dirs.split():
+                            oid = d.replace('ceph-', '')
+                            for _ in range(3):
+                                ssh.exec_command(f'systemctl reset-failed ceph-osd@{oid} 2>/dev/null; systemctl start ceph-osd@{oid} 2>/dev/null')
+                                time.sleep(8)
+                                _, sout, _ = ssh.exec_command(f'systemctl is-active ceph-osd@{oid}')
+                                if sout.read().decode().strip() == 'active':
+                                    break
+                            log.append(f"  OSD.{oid}: {sout.read().decode().strip() if hasattr(sout, 'read') else 'started'}")
+                        ssh.close()
+                    except Exception as e:
+                        log.append(f"  {nn}:{disk}: Erreur - {e}")
+
+        elif step == "create_pool":
+            # Step 6: Create Ceph pool via SSH (more reliable)
+            pool_name = config.get("pool_name", "ceph-pool")
+            pg_num = config.get("pg_num", 64)
+            size = config.get("replication_size", 3)
+            min_size = config.get("min_size", 2)
+
+            first_node = nodes[0] if nodes else ""
+            node_ip = node_ips.get(first_node, host_api)
+
+            log.append(f"Verification des OSD avant creation du pool...")
+            try:
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(node_ip,
+                            username=PROXMOX_CLUSTER["username"].split("@")[0],
+                            password=PROXMOX_CLUSTER["password"], timeout=10)
+
+                # Check OSD count first
+                _, stdout, _ = ssh.exec_command("ceph osd stat 2>&1", timeout=15)
+                osd_stat = stdout.read().decode("utf-8", "replace").strip()
+                log.append(f"  OSD stat: {osd_stat}")
+
+                if "0 osds" in osd_stat or "0 up" in osd_stat:
+                    log.append(f"  BLOQUANT: Aucun OSD actif ! Impossible de creer le pool.")
+                    log.append(f"  Retournez a l'etape OSD et creez des OSD d'abord.")
+                    ssh.close()
+                    return jsonify({"success": False, "log": log, "error": "Aucun OSD actif"})
+
+                # Create pool
+                log.append(f"Creation du pool '{pool_name}' (pg={pg_num}, size={size}, min_size={min_size})...")
+                _, stdout, _ = ssh.exec_command(
+                    f"ceph osd pool create {pool_name} {pg_num} {pg_num} replicated && "
+                    f"ceph osd pool set {pool_name} size {size} && "
+                    f"ceph osd pool set {pool_name} min_size {min_size} && "
+                    f"ceph osd pool application enable {pool_name} rbd 2>&1",
+                    timeout=60)
+                out = stdout.read().decode("utf-8", "replace").strip()
+                log.append(f"  {out}")
+
+                # Fix keyring for RBD access
+                log.append(f"Fix keyring...")
+                ssh.exec_command(
+                    'ceph auth get-or-create client.admin mon "allow *" osd "allow *" mds "allow *" mgr "allow *" '
+                    '> /etc/ceph/ceph.client.admin.keyring 2>/dev/null; chmod 644 /etc/ceph/ceph.client.admin.keyring',
+                    timeout=10)
+
+                # Add to Proxmox storage with explicit keyring
+                log.append(f"Ajout du stockage RBD dans Proxmox...")
+                _, stdout, _ = ssh.exec_command(
+                    f"pvesm add rbd {pool_name} -pool {pool_name} -content images,rootdir -krbd 0 "
+                    f"-keyring /etc/ceph/ceph.client.admin.keyring 2>&1",
+                    timeout=15)
+                out = stdout.read().decode("utf-8", "replace").strip()
+                if out:
+                    log.append(f"  {out}")
+                else:
+                    log.append(f"  Stockage '{pool_name}' ajoute a Proxmox")
+
+                ssh.close()
+            except Exception as e:
+                log.append(f"  Erreur: {e}")
+
+        elif step == "purge":
+            # Purge Ceph on all nodes
+            for nn in nodes:
+                node_ip = node_ips.get(nn)
+                if not node_ip:
+                    continue
+                log.append(f"Purge Ceph sur {nn}...")
+                try:
+                    ssh = paramiko.SSHClient()
+                    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                    ssh.connect(node_ip,
+                                username=PROXMOX_CLUSTER["username"].split("@")[0],
+                                password=PROXMOX_CLUSTER["password"], timeout=10)
+                    _, stdout, _ = ssh.exec_command(
+                        "systemctl stop ceph.target 2>/dev/null; "
+                        "killall -9 ceph-mon ceph-mgr ceph-osd 2>/dev/null; "
+                        "rm -rf /var/lib/ceph/* /tmp/ceph* /tmp/monmap 2>/dev/null; "
+                        "rm -f /etc/pve/ceph.conf /etc/pve/priv/ceph.* 2>/dev/null; "
+                        "rm -rf /etc/pve/ceph/ 2>/dev/null; "
+                        "wipefs -a /dev/sdc 2>/dev/null; "
+                        "dd if=/dev/zero of=/dev/sdc bs=1M count=10 2>/dev/null; "
+                        "mkdir -p /var/lib/ceph/{mon,mgr,osd,tmp,crash,bootstrap-osd,bootstrap-mgr}; "
+                        "chown -R ceph:ceph /var/lib/ceph/; "
+                        "echo PURGED", timeout=30)
+                    out = stdout.read().decode("utf-8", "replace").strip()
+                    log.append(f"  {nn}: {out}")
+                    ssh.close()
+                except Exception as e:
+                    log.append(f"  {nn}: Erreur - {e}")
+
+            # Remove Ceph storage from Proxmox
+            try:
+                for sname in ["ceph-vm", "ceph-pool"]:
+                    requests.delete(
+                        f"https://{host_api}:{PROXMOX_CLUSTER['port']}/api2/json/storage/{sname}",
+                        headers=headers, cookies=cookies, verify=False, timeout=10)
+            except Exception:
+                pass
+            log.append("Purge terminee.")
+
+        elif step == "health_check":
+            # Step 7: Health check
+            first_node = nodes[0] if nodes else ""
+            node_ip = node_ips.get(first_node, host_api)
+
+            try:
+                ssh = paramiko.SSHClient()
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh.connect(node_ip,
+                            username=PROXMOX_CLUSTER["username"].split("@")[0],
+                            password=PROXMOX_CLUSTER["password"], timeout=5)
+
+                for cmd_name, cmd in [
+                    ("Ceph Status", "ceph -s 2>&1"),
+                    ("Health Detail", "ceph health detail 2>&1"),
+                    ("OSD Tree", "ceph osd tree 2>&1"),
+                    ("Pool List", "ceph osd pool ls detail 2>&1"),
+                    ("DF", "ceph df 2>&1"),
+                ]:
+                    _, stdout, _ = ssh.exec_command(cmd, timeout=10)
+                    log.append(f"--- {cmd_name} ---")
+                    log.append(stdout.read().decode("utf-8", "replace").strip())
+
+                ssh.close()
+            except Exception as e:
+                log.append(f"Erreur SSH: {e}")
+
+        else:
+            return jsonify({"success": False, "error": f"Etape inconnue: {step}"}), 400
+
+        return jsonify({"success": True, "log": log})
+
+    except Exception as e:
+        log.append(f"Erreur: {e}")
+        return jsonify({"success": False, "log": log, "error": str(e)})
 
 
 # ── Main ────────────────────────────────────────────────────────────────────

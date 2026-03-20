@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cluster Manager - Ayi NEDJIMI Consultants</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/umd/index.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/reactflow@11.11.4/dist/style.css" rel="stylesheet">
     <style>
         :root{--bg:#f0f2f5;--card:#fff;--hover:#f8f9fb;--border:#e2e8f0;--border2:#cbd5e1;--text:#0f172a;--text2:#475569;--text3:#94a3b8;--accent:#2563eb;--accent2:#4f46e5;--green:#16a34a;--green-bg:#dcfce7;--green-b:#86efac;--yellow:#d97706;--yellow-bg:#fef3c7;--red:#dc2626;--red-bg:#fee2e2;--red-b:#fca5a5;--purple:#7c3aed;--cyan:#0891b2;--sh:0 1px 3px rgba(0,0,0,.06);--sh2:0 4px 12px rgba(0,0,0,.08);}
         *{margin:0;padding:0;box-sizing:border-box;}
@@ -206,6 +211,7 @@
         .archi-sto-icon{font-size:12px;}.archi-sto-name{font-weight:600;}.archi-sto-bar{flex:1;max-width:60px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;}
         .archi-sto-fill{height:100%;border-radius:2px;}.archi-sto-pct{font-size:.6rem;color:var(--text3);min-width:28px;text-align:right;}
 
+        @keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.3)}30%{transform:scale(1)}45%{transform:scale(1.2)}60%{transform:scale(1)}}
         .archi-legend{display:flex;gap:16px;justify-content:center;margin-top:16px;font-size:.65rem;color:var(--text3);flex-wrap:wrap;}
         .archi-legend-item{display:flex;align-items:center;gap:4px;}
         .archi-legend-dot{width:12px;height:12px;border-radius:3px;border:1px solid var(--border);}
@@ -281,6 +287,27 @@
         .sto-tag.thin{background:#dbeafe;color:#1d4ed8;}.sto-tag.thick{background:#e2e8f0;color:var(--text3);}
         .sto-tag.overcommit{background:var(--red-bg);color:var(--red);}
 
+        /* GOD MODE */
+        .god-wrap{padding:14px 24px;}
+        .god-warn{background:linear-gradient(135deg,#fef2f2,#fee2e2);border:2px solid var(--red);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px;}
+        .god-warn-icon{font-size:28px;flex-shrink:0;}
+        .god-warn-text{font-size:.78rem;color:#991b1b;}.god-warn-text b{color:var(--red);}
+        .god-card{background:#fff;border-radius:10px;border:1px solid var(--border);box-shadow:var(--sh);overflow:hidden;margin-bottom:10px;}
+        .god-card-h{padding:10px 14px;background:var(--hover);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+        .god-vm{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.04);transition:background .15s;}
+        .god-vm:hover{background:var(--hover);}
+        .god-vm-info{flex:1;}.god-vm-name{font-size:.82rem;font-weight:600;}.god-vm-meta{font-size:.62rem;color:var(--text3);}
+        .god-actions{display:flex;gap:6px;}
+        .god-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);font-size:.68rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
+        .god-btn:hover{transform:scale(1.02);}
+        .god-btn.start{background:#dcfce7;color:var(--green);border-color:var(--green-b);}.god-btn.start:hover{background:var(--green);color:#fff;}
+        .god-btn.stop{background:var(--yellow-bg);color:var(--yellow);border-color:#fde68a;}.god-btn.stop:hover{background:var(--yellow);color:#fff;}
+        .god-btn.kill{background:var(--red-bg);color:var(--red);border-color:var(--red-b);}.god-btn.kill:hover{background:var(--red);color:#fff;}
+        .god-btn.delete{background:#1e293b;color:#fff;border-color:#1e293b;}.god-btn.delete:hover{background:#0f172a;}
+        .god-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+        .god-result{padding:6px 14px;font-size:.7rem;border-top:1px solid var(--border);}
+        .god-result.ok{background:#f0fdf4;color:var(--green);}.god-result.err{background:#fef2f2;color:var(--red);}
+
         /* DIAGNOSTICS */
         .diag-wrap{padding:14px 24px;}
         .diag-summary{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
@@ -348,6 +375,8 @@
     <div class="tab" data-tab="diag">Diagnostics</div>
     <div class="tab" data-tab="reco">Recommandations</div>
     <div class="tab" data-tab="audit">Audit</div>
+    <div class="tab" data-tab="godmode" style="color:var(--red)">God Mode</div>
+    <a href="/ceph-wizard" class="tab" style="color:#ef4444;text-decoration:none">Ceph Wizard</a>
 </div>
 
 <div id="tab-quick" class="tab-content active">
@@ -363,7 +392,7 @@
 <div id="tab-perf" class="tab-content"><div id="perfContent"><div class="loading"><div class="spinner"></div>Chargement...</div></div></div>
 <div id="tab-optim" class="tab-content"><div id="optimContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
 <div id="tab-bench" class="tab-content"><div id="benchContent"><div class="loading">Selectionnez un noeud et lancez un benchmark...</div></div></div>
-<div id="tab-archi" class="tab-content"><div id="archiContent"><div class="loading">Chargement...</div></div></div>
+<div id="tab-archi" class="tab-content"><div id="archiContent" style="height:calc(100vh - 160px);min-height:500px;"><div class="loading"><div class="spinner"></div>Chargement...</div></div></div>
 <div id="tab-logs" class="tab-content"><div id="logsContent"><div class="loading"><div class="spinner"></div>Chargement des journaux...</div></div></div>
 <div id="tab-diag" class="tab-content"><div id="diagContent"><div class="loading"><div class="spinner"></div>Analyse en cours...</div></div></div>
 <div id="tab-reco" class="tab-content"><div id="recoContent"><div class="loading"><div class="spinner"></div>Analyse...</div></div></div>
@@ -376,6 +405,7 @@
     </div>
 </div>
 
+<div id="tab-godmode" class="tab-content"><div id="godContent"><div class="loading">Chargement...</div></div></div>
 <footer>&copy; 2026 <b>Ayi NEDJIMI Consultants</b> - Cluster Manager - Tous droits reserves</footer>
 
 <script>
@@ -394,6 +424,7 @@ document.querySelectorAll('.tab').forEach(t=>{
         if(name==='archi')loadArchi();
         if(name==='optim'&&!optimLoaded)loadOptim();
         if(name==='diag')loadDiag();
+        if(name==='godmode'&&lastData)renderGodMode(lastData);
         if(name==='logs'&&!logsLoaded)loadLogs();
         if(name==='reco'&&!recoLoaded)loadReco();
         if(name==='audit')loadAudit();
@@ -899,8 +930,8 @@ async function fetchStatus(){
         document.getElementById('alertMsg').innerHTML='<b>Erreur de connexion</b>';document.getElementById('alertDet').innerHTML='';
     }finally{btn.disabled=false;btn.style.opacity='1';}}
 
-// === ARCHITECTURE TAB ===
-let archiData=null;
+// === ARCHITECTURE TAB (React Flow) ===
+let archiData=null,archiRoot=null;
 async function loadArchi(){
     const el=document.getElementById('archiContent');
     el.innerHTML='<div class="loading"><div class="spinner"></div>Chargement de l\'architecture...</div>';
@@ -908,23 +939,242 @@ async function loadArchi(){
         const [r1,r2]=await Promise.all([fetch('/api/status'),fetch('/api/architecture')]);
         const status=await r1.json();const archi=await r2.json();
         archiData=archi;
-        renderArchi(status,archi);
+        renderArchiFlow(status,archi);
     }catch(e){el.innerHTML='<div class="loading" style="color:var(--red)">Erreur</div>';}
 }
 
-function renderArchi(data,archi){
-    const el=document.getElementById('archiContent');
-    const cl=data.cluster,nodes=data.nodes;
-    const coro=archi.corosync||{};
-    const nodesD=archi.nodes_detail||[];
-    const repl=archi.replication||[];
+function renderArchiFlow(statusData, archiData) {
+    const el = document.getElementById('archiContent');
+    const cl = statusData.cluster, nodes = statusData.nodes;
+    const coro = archiData.corosync || {};
+    const nodesD = archiData.nodes_detail || [];
+    const repl = archiData.replication || [];
+    const RF = window.ReactFlow;
+    const { createElement: h, useCallback, useMemo } = React;
 
-    let h=`<div class="archi-wrap">`;
+    // Build nodes and edges for React Flow
+    const flowNodes = [];
+    const flowEdges = [];
 
-    // Cluster box
-    h+=`<div class="archi-cluster">`;
-    h+=`<div class="archi-cluster-title">\u{1F310} ${esc(coro.cluster_name||cl.name)}</div>`;
-    h+=`<div class="archi-quorum ${cl.quorate?'ok':'bad'}">${cl.quorate?'\u2705 Quorum OK':'\u274C Quorum PERDU'}</div>`;
+    // Cluster header node
+    flowNodes.push({
+        id: 'cluster',
+        type: 'group',
+        position: { x: 0, y: 0 },
+        style: { width: Math.max(nodes.length * 340, 700), height: 'auto', background: 'transparent', border: 'none' },
+        data: {},
+    });
+
+    // Corosync info node
+    const transport = nodesD.find(n => n.transport)?.transport || 'knet';
+    const firstNd = nodesD.find(n => n.corosync_token);
+    flowNodes.push({
+        id: 'corosync-info',
+        position: { x: 20, y: 10 },
+        draggable: true,
+        style: { width: Math.max(nodes.length * 320, 660), padding: 0, border: 'none', background: 'transparent' },
+        data: { label: h('div', {
+            style: { background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', border: '2px solid #3b82f6', borderRadius: 14, padding: '14px 18px', fontFamily: 'Inter,sans-serif' }
+        },
+            h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } },
+                h('div', { style: { fontSize: 15, fontWeight: 700, color: '#1d4ed8' } }, '\u{1F310} ' + (coro.cluster_name || cl.name)),
+                h('div', { style: { display: 'flex', gap: 6 } },
+                    h('span', { style: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: cl.quorate ? '#dcfce7' : '#fee2e2', color: cl.quorate ? '#16a34a' : '#dc2626' } }, cl.quorate ? '\u2705 Quorum OK' : '\u274C Quorum PERDU'),
+                )
+            ),
+            h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11 } },
+                ...[
+                    ['Transport', transport],
+                    ['SecAuth', coro.secauth || 'off'],
+                    ['Mode', coro.link_mode || 'N/A'],
+                    ['IP', coro.ip_version || 'N/A'],
+                    ['Token', (firstNd?.corosync_token || '1000') + ' ms'],
+                    ['QDevice', coro.qdevice ? 'Actif' : 'Non'],
+                ].map(([k, v]) =>
+                    h('span', { key: k, style: { padding: '2px 8px', borderRadius: 6, background: '#fff', border: '1px solid #bfdbfe', color: '#475569' } },
+                        h('b', { style: { color: '#1d4ed8' } }, k + ': '), v)
+                )
+            )
+        )}
+    });
+
+    // Node cards
+    const nodeSpacing = 320;
+    const nodeStartX = 30;
+    const nodeStartY = 130;
+
+    nodes.forEach((n, i) => {
+        const nd = nodesD.find(d => d.name === n.name) || {};
+        const isOn = n.online;
+        const s = n.stats;
+        const ntp = nd.ntp || {};
+
+        const nodeContent = h('div', {
+            style: {
+                background: '#fff', borderRadius: 12, border: `2px solid ${isOn ? '#16a34a' : '#dc2626'}`,
+                width: 290, overflow: 'hidden', fontFamily: 'Inter,sans-serif',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            }
+        },
+            // Header
+            h('div', { style: { padding: '10px 12px', background: isOn ? '#f0fdf4' : '#fef2f2', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8 } },
+                h('div', { style: { width: 36, height: 36, borderRadius: 9, background: isOn ? 'linear-gradient(135deg,#dcfce7,#bbf7d0)' : '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 } }, isOn ? '\u{1F5A5}' : '\u{1F6AB}'),
+                h('div', {},
+                    h('div', { style: { fontSize: 14, fontWeight: 700 } }, n.name),
+                    h('div', { style: { fontSize: 10, color: '#94a3b8', fontFamily: 'monospace' } }, n.ip),
+                ),
+                h('div', { style: { marginLeft: 'auto' } },
+                    h('div', { style: { width: 12, height: 12, borderRadius: '50%', background: isOn ? '#16a34a' : '#dc2626', boxShadow: `0 0 8px ${isOn ? 'rgba(22,163,74,.4)' : 'rgba(220,38,38,.4)'}`, animation: isOn ? '' : 'blink 1s infinite' } })
+                ),
+            ),
+            // Status pills
+            isOn && h('div', { style: { display: 'flex', gap: 4, padding: '6px 10px', flexWrap: 'wrap', borderBottom: '1px solid #e2e8f0', fontSize: 9 } },
+                h('span', { style: { padding: '2px 6px', borderRadius: 5, background: nd.corosync_ok ? '#dcfce7' : '#fee2e2', border: '1px solid ' + (nd.corosync_ok ? '#86efac' : '#fca5a5') } }, 'Corosync ' + (nd.corosync_ok ? '\u2705' : '\u274C')),
+                h('span', { style: { padding: '2px 6px', borderRadius: 5, background: nd.heartbeat_ok ? '#fff' : '#fee2e2', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 3 } },
+                    h('span', { style: { color: '#dc2626', animation: 'heartbeat 1s ease-in-out infinite', display: 'inline-block' } }, '\u2764\uFE0F'),
+                    nd.heartbeat_ok ? 'OK' : 'DOWN'
+                ),
+                h('span', { style: { padding: '2px 6px', borderRadius: 5, background: nd.jumbo_frames ? '#dcfce7' : '#fff', border: '1px solid ' + (nd.jumbo_frames ? '#86efac' : '#e2e8f0') } }, 'MTU:' + (nd.mtu || 1500)),
+                ntp.active && h('span', { style: { padding: '2px 6px', borderRadius: 5, background: ntp.synced ? '#dcfce7' : '#fee2e2', border: '1px solid ' + (ntp.synced ? '#86efac' : '#fca5a5') } }, 'NTP:' + (ntp.drift || '?') + ' (' + (ntp.sources_count || 0) + 'src)'),
+            ),
+            // Gauges
+            isOn && s && h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', borderBottom: '1px solid #e2e8f0' } },
+                ...[
+                    ['CPU', s.cpu_usage, s.cpu_cores + 'c'],
+                    ['RAM', s.memory_pct, ''],
+                    ['Disk', s.disk_pct, ''],
+                ].map(([lbl, pct, sub]) =>
+                    h('div', { key: lbl, style: { textAlign: 'center', padding: '8px 4px', borderRight: '1px solid #e2e8f0' } },
+                        h('div', { style: { fontSize: 16, fontWeight: 700, color: pct < 60 ? '#16a34a' : pct < 85 ? '#d97706' : '#dc2626' } }, pct + '%'),
+                        h('div', { style: { fontSize: 8, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: .5 } }, lbl + (sub ? ' (' + sub + ')' : '')),
+                    )
+                )
+            ),
+            // VMs
+            isOn && (n.vms.length > 0 || n.containers.length > 0) && h('div', { style: { padding: '6px 10px' } },
+                ...n.vms.map(v =>
+                    h('div', { key: 'vm' + v.vmid, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', marginBottom: 3, borderRadius: 5, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10 } },
+                        h('span', { style: { background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)', borderRadius: 5, width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 } }, '\u{1F4BB}'),
+                        h('b', {}, v.name),
+                        h('span', { style: { color: '#94a3b8' } }, '#' + v.vmid),
+                        v.agent_running && h('span', { style: { fontSize: 8, padding: '1px 4px', borderRadius: 3, background: '#dcfce7', color: '#16a34a' } }, '\u2705'),
+                        !v.agent_running && v.agent_enabled !== undefined && h('span', { style: { fontSize: 8, padding: '1px 4px', borderRadius: 3, background: '#fee2e2', color: '#dc2626' } }, '\u274C'),
+                        h('div', { style: { width: 6, height: 6, borderRadius: '50%', background: v.status === 'running' ? '#16a34a' : '#94a3b8', marginLeft: 'auto' } }),
+                        v.status === 'running' && h('span', { style: { fontSize: 8, color: '#94a3b8' } }, v.cpu + '% | ' + v.mem_pct + '%'),
+                    )
+                ),
+                ...n.containers.map(c =>
+                    h('div', { key: 'ct' + c.vmid, style: { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', marginBottom: 3, borderRadius: 5, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 10 } },
+                        h('span', { style: { background: 'linear-gradient(135deg,#fef3c7,#fde68a)', borderRadius: 5, width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 } }, '\u{1F4E6}'),
+                        h('b', {}, c.name),
+                        h('span', { style: { color: '#94a3b8' } }, '#' + c.vmid),
+                        h('div', { style: { width: 6, height: 6, borderRadius: '50%', background: c.status === 'running' ? '#16a34a' : '#94a3b8', marginLeft: 'auto' } }),
+                    )
+                ),
+            ),
+            // Storage + ZFS
+            isOn && n.storage.length > 0 && h('div', { style: { padding: '6px 10px', borderTop: '1px solid #e2e8f0' } },
+                ...n.storage.map(st =>
+                    h('div', { key: st.storage, style: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, marginBottom: 2 } },
+                        h('span', {}, '\u{1F4BE}'),
+                        h('b', {}, st.storage),
+                        h('span', { style: { color: '#94a3b8' } }, st.plugintype),
+                        h('div', { style: { flex: 1, maxWidth: 50, height: 4, background: '#e2e8f0', borderRadius: 2, overflow: 'hidden' } },
+                            h('div', { style: { height: '100%', borderRadius: 2, width: st.pct + '%', background: st.pct < 60 ? '#16a34a' : st.pct < 85 ? '#d97706' : '#dc2626' } })
+                        ),
+                        h('span', { style: { color: st.pct < 60 ? '#16a34a' : st.pct < 85 ? '#d97706' : '#dc2626', fontWeight: 600 } }, st.pct + '%'),
+                    )
+                ),
+                nd.zfs && nd.zfs.loaded && h('div', { style: { fontSize: 8, padding: '3px 6px', marginTop: 3, background: nd.zfs.persistent_config ? '#eff6ff' : '#fef3c7', borderRadius: 4, border: '1px solid ' + (nd.zfs.persistent_config ? '#bfdbfe' : '#fde68a') } },
+                    'ARC: ' + (nd.zfs.arc_size || '?') + '/' + (nd.zfs.arc_max_fmt || '?') + (nd.zfs.hit_ratio > 0 ? ' Hit:' + nd.zfs.hit_ratio + '%' : '') + ' ' + (nd.zfs.persistent_config ? '\u2705' : '\u26A0 Non persistant')
+                ),
+            ),
+            // Offline
+            !isOn && h('div', { style: { padding: 20, textAlign: 'center', color: '#dc2626', fontWeight: 700 } }, '\u{1F6AB} HORS LIGNE'),
+        );
+
+        flowNodes.push({
+            id: 'node-' + n.name,
+            position: { x: nodeStartX + i * nodeSpacing, y: nodeStartY },
+            draggable: true,
+            style: { padding: 0, border: 'none', background: 'transparent', width: 290 },
+            data: { label: nodeContent },
+        });
+    });
+
+    // Edges between nodes (animated)
+    for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+            const ok = nodes[i].online && nodes[j].online;
+            flowEdges.push({
+                id: `e-${nodes[i].name}-${nodes[j].name}`,
+                source: 'node-' + nodes[i].name,
+                target: 'node-' + nodes[j].name,
+                type: 'default',
+                animated: ok,
+                style: { stroke: ok ? '#16a34a' : '#dc2626', strokeWidth: 2, strokeDasharray: ok ? '' : '5,5' },
+                label: ok ? '\u{1F4E1}' : '\u274C',
+                labelStyle: { fontSize: 10 },
+                labelBgStyle: { fill: '#fff', fillOpacity: 0.8, rx: 4 },
+            });
+        }
+    }
+
+    // Replication edges
+    for (const r of repl) {
+        flowEdges.push({
+            id: 'repl-' + (r.id || r.guest),
+            source: 'node-' + (r.source || ''),
+            target: 'node-' + (r.target || ''),
+            type: 'default',
+            animated: true,
+            style: { stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '8,4' },
+            label: '\u{1F504} VM' + (r.guest || r.vmid || '?') + ' ' + (r.schedule || ''),
+            labelStyle: { fontSize: 9, fill: '#3b82f6' },
+            labelBgStyle: { fill: '#eff6ff', fillOpacity: 0.9, rx: 4 },
+        });
+    }
+
+    // React Flow App component
+    function ArchiApp() {
+        const [rfNodes, setNodes] = React.useState(flowNodes);
+        const [rfEdges, setEdges] = React.useState(flowEdges);
+        const onNodesChange = useCallback((changes) => {
+            setNodes((nds) => RF.applyNodeChanges(changes, nds));
+        }, []);
+
+        return h(RF.ReactFlowProvider, {},
+            h(RF.default, {
+                nodes: rfNodes,
+                edges: rfEdges,
+                onNodesChange: onNodesChange,
+                fitView: true,
+                minZoom: 0.3,
+                maxZoom: 2,
+                attributionPosition: 'bottom-left',
+                proOptions: { hideAttribution: true },
+                style: { background: 'linear-gradient(180deg, #f8fafc, #eff6ff)' },
+            },
+                h(RF.Background, { variant: 'dots', gap: 20, size: 1, color: '#cbd5e1' }),
+                h(RF.Controls, { showInteractive: false }),
+                h(RF.MiniMap, { nodeStrokeWidth: 3, pannable: true, zoomable: true,
+                    style: { border: '1px solid #e2e8f0', borderRadius: 8 } }),
+            )
+        );
+    }
+
+    // Render React app
+    el.innerHTML = '';
+    if (!archiRoot) {
+        archiRoot = ReactDOM.createRoot(el);
+    }
+    archiRoot.render(h(ArchiApp));
+}
+
+// Keep old renderArchi as fallback
+function renderArchi(data,archi){ renderArchiFlow(data,archi); }
+/* Old architecture code removed - now using React Flow above */
+/* PLACEHOLDER_START
 
     // Corosync info bar
     h+=`<div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">`;
@@ -935,6 +1185,9 @@ function renderArchi(data,archi){
     h+=`<div class="info-pill">IP: <b>${esc(coro.ip_version||'N/A')}</b></div>`;
     h+=`<div class="info-pill">Config v${esc(coro.config_version||'?')}</div>`;
     h+=`<div class="info-pill">QDevice: <b style="color:${coro.qdevice?'var(--green)':'var(--text3)}'}">${coro.qdevice?'Actif':'Non'}</b></div>`;
+    // Token from first node
+    const firstNd=nodesD.find(n=>n.corosync_token);
+    if(firstNd) h+=`<div class="info-pill">Token: <b>${esc(firstNd.corosync_token)}</b> ms</div>`;
     h+=`</div>`;
 
     // Network backbone with animation
@@ -969,9 +1222,14 @@ function renderArchi(data,archi){
             // Corosync + network status
             h+=`<div style="display:flex;gap:4px;padding:6px 12px;flex-wrap:wrap;border-bottom:1px solid var(--border);font-size:.6rem">`;
             h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem"><div class="dot ${nd.corosync_ok?'dot-g':'dot-r'}"></div>Corosync ${nd.corosync_ok?'OK':'!'}</span>`;
-            h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem"><div class="dot ${nd.heartbeat_ok?'dot-g':'dot-r'}"></div>Heartbeat</span>`;
+            h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem;${nd.heartbeat_ok?'':'background:var(--red-bg);border-color:var(--red-b)'}"><span style="color:${nd.heartbeat_ok?'var(--red)':'var(--red)'};animation:heartbeat 1s ease-in-out infinite;display:inline-block">\u2764</span> ${nd.heartbeat_ok?'OK':'DOWN'}</span>`;
             h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem;${nd.jumbo_frames?'background:#dcfce7;border-color:#86efac':''}">MTU: ${nd.mtu} ${nd.jumbo_frames?'\u2705':''}</span>`;
             if(nd.transport) h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem">${esc(nd.transport)}</span>`;
+            // NTP drift
+            if(nd.ntp){
+                const ntpOk=nd.ntp.synced;
+                h+=`<span class="info-pill" style="padding:2px 6px;font-size:.58rem;${ntpOk?'':'background:var(--red-bg);border-color:var(--red-b)'}"><div class="dot ${ntpOk?'dot-g':'dot-r'}"></div>NTP: ${esc(nd.ntp.drift)} ${nd.ntp.sources_count?'('+nd.ntp.sources_count+' src)':''}</span>`;
+            }
             h+=`</div>`;
 
             // Stats bar
@@ -1091,9 +1349,7 @@ function renderArchi(data,archi){
     h+=`<div class="archi-legend-item"><div style="width:20px;height:2px;background:var(--red);border-radius:1px;border:1px dashed var(--red)"></div>Lien down</div>`;
     h+=`</div>`;
 
-    h+=`</div>`;
-    el.innerHTML=h;
-}
+PLACEHOLDER_END */
 
 // === PERFORMANCE TAB ===
 async function loadPerf(){
@@ -1195,6 +1451,7 @@ function renderPerf(data){
 // === BENCHMARKS ===
 let benchResults=[];
 
+let benchCharts={};
 async function renderBenchTab(){
     const el=document.getElementById('benchContent');
     let h=renderBenchSection();
@@ -1203,48 +1460,114 @@ async function renderBenchTab(){
         const r=await fetch('/api/benchmark/history');
         const hist=await r.json();
         if(Array.isArray(hist)&&hist.length){
-            h+=`<div style="padding:0 24px 14px"><div class="card"><div class="card-h"><div class="card-title"><div class="card-icon">\u{1F4C8}</div><div><div class="card-name">Historique des benchmarks</div><div class="card-ip">${hist.length} executions</div></div></div></div>`;
-            h+=`<div class="sec">`;
-
-            // Group by type for charts
+            // Group by type
             const types={};
-            for(const b of hist){
-                if(!types[b.bench_type])types[b.bench_type]=[];
-                types[b.bench_type].push(b);
-            }
+            for(const b of hist){if(!types[b.bench_type])types[b.bench_type]=[];types[b.bench_type].push(b);}
 
-            // Chart per type
+            const typeLabels={pveperf:'PVE Performance',cpu:'CPU Crypto',memory:'Memoire',disk_write:'Disque Ecriture',disk_read:'Disque Lecture',network:'Latence Reseau'};
+            const typeColors={pveperf:['#3b82f6','rgba(59,130,246,.1)'],cpu:['#8b5cf6','rgba(139,92,246,.1)'],memory:['#06b6d4','rgba(6,182,212,.1)'],disk_write:['#f59e0b','rgba(245,158,11,.1)'],disk_read:['#10b981','rgba(16,185,129,.1)'],network:['#ef4444','rgba(239,68,68,.1)']};
+
+            h+=`<div style="padding:0 24px 20px">`;
+
+            // Overview chart (all types latest value)
+            h+=`<div class="card" style="margin-bottom:16px"><div class="card-h"><div class="card-title"><div class="card-icon">\u{1F4CA}</div><div><div class="card-name">Vue d'ensemble - Derniers resultats</div><div class="card-ip">${hist.length} benchmarks au total</div></div></div></div>`;
+            h+=`<div style="padding:16px;height:220px"><canvas id="bench_overview"></canvas></div></div>`;
+
+            // Per-type charts
+            h+=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:14px">`;
             let cid=0;
             for(const[type,entries] of Object.entries(types)){
-                const labels={pveperf:'PVE Performance',cpu:'CPU Crypto',memory:'Memoire',disk_write:'Disque Ecriture',disk_read:'Disque Lecture',network:'Reseau'};
-                const recent=entries.slice(0,20).reverse();
-                const chartId='bhist_'+(cid++);
-                h+=`<div style="margin-bottom:14px"><div style="font-size:.75rem;font-weight:600;margin-bottom:6px">${labels[type]||type} (${entries.length} tests)</div>`;
-                h+=`<canvas id="${chartId}" style="width:100%;height:60px"></canvas>`;
-
-                // Table
-                h+=`<table style="margin-top:6px"><thead><tr><th>Date</th><th>Noeud</th><th>Resultats</th></tr></thead><tbody>`;
+                const chartId='bchart_'+(cid++);
+                const recent=entries.slice(0,30).reverse();
+                h+=`<div class="card"><div class="card-h"><div class="card-title"><div class="card-icon" style="font-size:12px">${typeColors[type]?'\u{1F4C8}':'\u{1F4CA}'}</div><div><div class="card-name">${typeLabels[type]||type}</div><div class="card-ip">${entries.length} executions</div></div></div></div>`;
+                h+=`<div style="padding:14px;height:200px"><canvas id="${chartId}"></canvas></div>`;
+                // Latest results table
+                h+=`<div style="padding:0 14px 10px"><table><thead><tr><th>Date</th><th>Noeud</th><th>Valeur principale</th><th>Rating</th></tr></thead><tbody>`;
                 for(const b of entries.slice(0,5)){
                     let results=[];try{results=JSON.parse(b.results||'[]');}catch(e){}
-                    const summary=results.map(r=>`${r.name}: ${r.value}`).join(' | ');
-                    h+=`<tr><td style="font-size:.62rem;color:var(--text3);white-space:nowrap">${esc(b.timestamp)}</td><td>${esc(b.node)}</td><td style="font-size:.62rem">${esc(summary).substring(0,120)}</td></tr>`;
+                    const main=results[0]||{};
+                    const rCol=main.rating==='good'?'var(--green)':main.rating==='bad'?'var(--red)':'var(--accent)';
+                    h+=`<tr><td style="font-size:.6rem;color:var(--text3);white-space:nowrap">${esc(b.timestamp)}</td><td style="font-size:.68rem">${esc(b.node)}</td><td style="font-size:.68rem;font-weight:600">${esc(main.value||'')}</td><td style="color:${rCol};font-size:.65rem;font-weight:600">${esc(main.rating||'')}</td></tr>`;
                 }
-                h+=`</tbody></table></div>`;
+                h+=`</tbody></table></div></div>`;
+            }
+            h+=`</div></div>`;
 
-                // Draw sparkline for first numeric result
-                setTimeout(()=>{
-                    const vals=[];
-                    for(const b of recent){
-                        let results=[];try{results=JSON.parse(b.results||'[]');}catch(e){}
-                        for(const r of results){
-                            const num=parseFloat(r.value);
-                            if(!isNaN(num)){vals.push(num);break;}
+            // Render charts after DOM update
+            el.innerHTML=h;
+
+            // Destroy old charts
+            for(const k in benchCharts){if(benchCharts[k])benchCharts[k].destroy();}
+            benchCharts={};
+
+            setTimeout(()=>{
+                // Overview bar chart
+                const overCtx=document.getElementById('bench_overview');
+                if(overCtx){
+                    const cats=[];const vals=[];const colors=[];const borders=[];
+                    for(const[type,entries] of Object.entries(types)){
+                        let results=[];try{results=JSON.parse(entries[0].results||'[]');}catch(e){}
+                        const main=results[0]||{};
+                        const num=parseFloat(main.value);
+                        if(!isNaN(num)){
+                            cats.push((typeLabels[type]||type)+' ('+entries[0].node+')');
+                            vals.push(num);
+                            const c=typeColors[type]||['#94a3b8','rgba(148,163,184,.1)'];
+                            colors.push(c[1]);borders.push(c[0]);
                         }
                     }
-                    if(vals.length>1) drawSparkline(chartId,vals,'rgb(37,99,235)');
-                },200);
-            }
-            h+=`</div></div></div>`;
+                    if(vals.length){
+                        benchCharts['overview']=new Chart(overCtx,{type:'bar',data:{labels:cats,datasets:[{label:'Derniere valeur',data:vals,backgroundColor:colors,borderColor:borders,borderWidth:2,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString()}}},scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'}},x:{grid:{display:false},ticks:{font:{size:10}}}}}});
+                    }
+                }
+
+                // Per-type line charts
+                cid=0;
+                for(const[type,entries] of Object.entries(types)){
+                    const chartId='bchart_'+(cid++);
+                    const ctx=document.getElementById(chartId);
+                    if(!ctx)continue;
+                    const recent=entries.slice(0,30).reverse();
+                    const labels=recent.map(b=>b.timestamp.split(' ').pop()||b.timestamp);
+                    const datasets=[];
+
+                    // Extract all unique metric names
+                    const metricNames=new Set();
+                    for(const b of recent){
+                        let results=[];try{results=JSON.parse(b.results||'[]');}catch(e){}
+                        for(const r of results){const num=parseFloat(r.value);if(!isNaN(num))metricNames.add(r.name);}
+                    }
+
+                    const palette=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
+                    let ci=0;
+                    for(const metric of metricNames){
+                        const data=recent.map(b=>{
+                            let results=[];try{results=JSON.parse(b.results||'[]');}catch(e){}
+                            const found=results.find(r=>r.name===metric);
+                            return found?parseFloat(found.value)||0:null;
+                        });
+                        const color=palette[ci%palette.length];
+                        datasets.push({
+                            label:metric,data:data,
+                            borderColor:color,backgroundColor:color+'18',
+                            fill:true,tension:.4,pointRadius:3,pointHoverRadius:6,
+                            borderWidth:2,
+                        });
+                        ci++;
+                        if(ci>=3)break;// Max 3 metrics per chart
+                    }
+
+                    if(datasets.length){
+                        benchCharts[chartId]=new Chart(ctx,{type:'line',data:{labels,datasets},options:{
+                            responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+                            plugins:{legend:{position:'bottom',labels:{font:{size:10},usePointStyle:true,pointStyle:'circle'}},
+                                tooltip:{mode:'index',intersect:false,backgroundColor:'rgba(15,23,42,.9)',titleFont:{size:11},bodyFont:{size:11},padding:10,cornerRadius:8}},
+                            scales:{y:{beginAtZero:true,grid:{color:'rgba(0,0,0,.04)'},ticks:{font:{size:9}}},x:{grid:{display:false},ticks:{font:{size:8},maxTicksLimit:10}}},
+                        }});
+                    }
+                }
+            },100);
+            return;
         }
     }catch(e){}
     el.innerHTML=h;
@@ -1283,8 +1606,11 @@ async function runBench(type){
     if(btn){btn.disabled=true;btn.innerHTML=`<span class="bench-spinner"></span> En cours...`;}
 
     try{
+        const ctrl=new AbortController();
+        const timer=setTimeout(()=>ctrl.abort(),300000); // 5 min timeout
         const r=await fetch('/api/benchmark',{method:'POST',headers:{'Content-Type':'application/json'},
-            body:JSON.stringify({node_ip:ip,node_name:name,type:type})});
+            body:JSON.stringify({node_ip:ip,node_name:name,type:type}),signal:ctrl.signal});
+        clearTimeout(timer);
         const data=await r.json();
         if(data.error&&!data.results?.length){
             showBenchResult(type,name,ip,[{name:'Erreur',value:data.error,rating:'bad'}],'');
@@ -1764,6 +2090,209 @@ rc-service qemu-guest-agent start</pre>
         </div>
         <p style="margin-top:10px;font-size:.72rem"><b>Ensuite dans Proxmox :</b> VM > Options > QEMU Guest Agent > Cocher "Use QEMU Guest Agent"</p>
         <div class="btn-row"><button class="btn" onclick="hideModal()">Fermer</button></div>`);
+}
+
+// === GOD MODE ===
+function renderGodMode(data){
+    const el=document.getElementById('godContent');
+    const nodes=data.nodes;
+    let h='<div class="god-wrap">';
+
+    // Warning banner
+    h+=`<div class="god-warn"><div class="god-warn-icon">\u26A0\uFE0F</div><div class="god-warn-text"><b>GOD MODE</b> - Actions directes sur les VMs et Containers. Les actions de force (kill, delete) sont <b>irreversibles</b>. Utilisez avec precaution.</div></div>`;
+
+    for(const n of nodes){
+        if(!n.online)continue;
+        const allVMs=[...n.vms.map(v=>({...v,vtype:'qemu'})),...n.containers.map(c=>({...c,vtype:'lxc'}))];
+        if(!allVMs.length)continue;
+
+        h+=`<div class="god-card"><div class="god-card-h"><div style="display:flex;align-items:center;gap:8px"><div class="archi-node-led on"></div><span style="font-size:.85rem;font-weight:600">${esc(n.name)}</span><span style="font-size:.65rem;color:var(--text3)">${esc(n.ip)}</span></div><span style="font-size:.65rem;color:var(--text3)">${allVMs.length} VM/CT</span></div>`;
+
+        for(const v of allVMs.sort((a,b)=>a.vmid-b.vmid)){
+            const run=v.status==='running';
+            const rid='god_result_'+v.vmid;
+            h+=`<div class="god-vm" id="god_vm_${v.vmid}">`;
+            h+=`<div style="width:10px;height:10px;border-radius:50%;background:${run?'var(--green)':'var(--text3)'}"></div>`;
+            h+=`<div class="god-vm-info"><div class="god-vm-name">${v.vtype==='qemu'?'\u{1F4BB}':'\u{1F4E6}'} ${esc(v.name)} <span style="color:var(--text3);font-weight:400">#${v.vmid}</span></div>`;
+            h+=`<div class="god-vm-meta">Status: <b>${esc(v.status)}</b> | CPU: ${v.cpu}% | RAM: ${v.mem_pct}% | Uptime: ${esc(v.uptime||'-')}</div></div>`;
+
+            h+=`<div class="god-actions">`;
+            if(!run){
+                h+=`<button class="god-btn start" onclick="godAction('${esc(n.name)}','${v.vmid}','start','${v.vtype}',this)">\u25B6 Start</button>`;
+            } else {
+                h+=`<button class="god-btn stop" onclick="godAction('${esc(n.name)}','${v.vmid}','shutdown','${v.vtype}',this)">\u23F9 Shutdown</button>`;
+                h+=`<button class="god-btn stop" onclick="godAction('${esc(n.name)}','${v.vmid}','reboot','${v.vtype}',this)">\u{1F504} Reboot</button>`;
+                h+=`<button class="god-btn kill" onclick="if(confirm('FORCE STOP VM ${v.vmid} ?\\nCela peut corrompre les donnees !'))godAction('${esc(n.name)}','${v.vmid}','stop','${v.vtype}',this)">\u{1F480} Force Stop</button>`;
+                h+=`<button class="god-btn kill" onclick="if(confirm('RESET VM ${v.vmid} ?\\nEquivalent a couper le courant !'))godAction('${esc(n.name)}','${v.vmid}','reset','${v.vtype}',this)">\u26A1 Reset</button>`;
+            }
+            h+=`<button class="god-btn delete" onclick="if(confirm('SUPPRIMER DEFINITIVEMENT VM ${v.vmid} (${esc(v.name)}) ?\\n\\nCette action est IRREVERSIBLE !\\nTous les disques seront detruits !'))godAction('${esc(n.name)}','${v.vmid}','delete','${v.vtype}',this)">\u{1F5D1} Delete</button>`;
+            h+=`</div></div>`;
+            h+=`<div class="god-result" id="${rid}" style="display:none"></div>`;
+        }
+        h+=`</div>`;
+    }
+
+    if(!nodes.some(n=>n.online&&(n.vms.length||n.containers.length))){
+        h+=`<div style="text-align:center;padding:40px;color:var(--text3);font-style:italic">Aucune VM ou Container sur le cluster</div>`;
+    }
+
+    // Replication pre-check tool
+    const onlineNodes=nodes.filter(n=>n.online);
+    if(onlineNodes.length>=2){
+    // Purge Ceph
+    h+=`<div class="god-card" style="border-color:var(--red)"><div class="god-card-h" style="background:var(--red-bg)"><span style="font-size:.85rem;font-weight:600;color:var(--red)">\u{1F5D1} Purge Ceph</span></div>`;
+    h+=`<div style="padding:14px"><p style="font-size:.72rem;color:var(--text2);margin-bottom:10px">Supprime Ceph sur <b>tous les noeuds</b> : services, MON, MGR, OSD, config, disques. <b>Irreversible !</b></p>`;
+    h+=`<button class="god-btn delete" onclick="if(confirm('PURGER CEPH sur TOUS les noeuds ?\\n\\nCette action supprime :\\n- Tous les MON, MGR, OSD\\n- La configuration Ceph\\n- Les donnees sur les disques OSD\\n- Le pool et le storage Proxmox\\n\\nIRREVERSIBLE !'))purgeCephCluster()">\u{1F5D1} Purger Ceph sur tout le cluster</button>`;
+    h+=`<div id="purgeCephResult" style="margin-top:10px"></div>`;
+    h+=`</div></div>`;
+
+    h+=`<div class="god-card" style="border-color:var(--accent)"><div class="god-card-h" style="background:#eff6ff"><span style="font-size:.85rem;font-weight:600;color:var(--accent)">\u{1F504} Analyse pre-replication</span></div>`;
+        h+=`<div style="padding:14px">`;
+        h+=`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">`;
+        h+=`<label style="font-size:.72rem;font-weight:600">Source:</label><select id="replSrc" class="bench-select">`;
+        for(const n of onlineNodes) h+=`<option value="${esc(n.name)}">${esc(n.name)} (${esc(n.ip)})</option>`;
+        h+=`</select>`;
+        h+=`<span style="font-size:1.1rem">\u27A1</span>`;
+        h+=`<label style="font-size:.72rem;font-weight:600">Destination:</label><select id="replTgt" class="bench-select">`;
+        for(const n of onlineNodes.slice().reverse()) h+=`<option value="${esc(n.name)}">${esc(n.name)} (${esc(n.ip)})</option>`;
+        h+=`</select>`;
+        h+=`<button class="btn" onclick="runReplCheck()">\u{1F50D} Analyser</button>`;
+        h+=`</div>`;
+        h+=`<div id="replResult"></div>`;
+        h+=`</div></div>`;
+    }
+
+    h+='</div>';
+    el.innerHTML=h;
+}
+
+async function godAction(node,vmid,action,vtype,btn){
+    const rid='god_result_'+vmid;
+    const resEl=document.getElementById(rid);
+    if(btn)btn.disabled=true;
+    resEl.style.display='block';resEl.className='god-result';resEl.textContent='Action en cours...';
+
+    try{
+        const r=await fetch('/api/vm/action',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({node,vmid,action,type:vtype})});
+        const data=await r.json();
+        if(data.success){
+            resEl.className='god-result ok';
+            resEl.textContent='\u2705 '+data.message;
+            // Refresh after 2s
+            // Poll until status changes
+            resEl.textContent='\u2705 '+data.message+' - Rafraichissement...';
+            let polls=0;
+            const pollFn=async()=>{
+                polls++;
+                if(polls>10)return;
+                try{
+                    const sr=await fetch('/api/status?nocache='+Date.now());
+                    const sd=await sr.json();
+                    if(!sd.error){lastData=sd;renderGodMode(sd);renderQuick(sd);}
+                }catch(e){}
+                if(polls<5)setTimeout(pollFn,2000);
+            };
+            setTimeout(pollFn,3000);
+        } else {
+            resEl.className='god-result err';
+            resEl.textContent='\u274C '+data.error;
+        }
+    }catch(e){
+        resEl.className='god-result err';
+        resEl.textContent='\u274C Erreur: '+e.message;
+    }finally{
+        if(btn)btn.disabled=false;
+    }
+}
+
+// === PURGE CEPH ===
+async function purgeCephCluster(){
+    const el=document.getElementById('purgeCephResult');
+    el.innerHTML='<div class="log" style="max-height:200px" id="purgeCephLog">Purge en cours sur tous les noeuds...</div>';
+    try{
+        const r=await fetch('/api/ceph/purge-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+        const d=await r.json();
+        const logEl=document.getElementById('purgeCephLog');
+        for(const l of d.log||[]){
+            const div=document.createElement('div');
+            div.textContent=l;
+            if(l.includes('OK')||l.includes('PURGED'))div.className='ok';
+            if(l.includes('Erreur'))div.className='err';
+            logEl.appendChild(div);
+        }
+        if(d.success) toast('Ceph purge sur tout le cluster !');
+        else toast('Erreur purge Ceph','err');
+    }catch(e){
+        el.innerHTML=`<div style="color:var(--red)">${esc(e.message)}</div>`;
+        toast('Erreur purge','err');
+    }
+}
+
+// === REPLICATION PRE-CHECK ===
+async function runReplCheck(){
+    const src=document.getElementById('replSrc').value;
+    const tgt=document.getElementById('replTgt').value;
+    const el=document.getElementById('replResult');
+    if(src===tgt){el.innerHTML='<div style="color:var(--red);font-size:.75rem">Source et destination doivent etre differents</div>';return;}
+    el.innerHTML='<div class="loading" style="padding:20px"><div class="spinner"></div>Analyse en cours (SSH sur les 2 noeuds)...</div>';
+
+    try{
+        const r=await fetch('/api/replication-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:src,target:tgt})});
+        const data=await r.json();
+        if(data.error){el.innerHTML=`<div style="color:var(--red)">${esc(data.error)}</div>`;return;}
+
+        let h='';
+        // Summary
+        const col=data.ready?'var(--green)':data.blockers?'var(--red)':'var(--yellow)';
+        h+=`<div style="padding:12px;border-radius:10px;background:${data.ready?'#f0fdf4':'#fef2f2'};border:1px solid ${data.ready?'#bbf7d0':'#fca5a5'};margin-bottom:12px">`;
+        h+=`<div style="font-size:.85rem;font-weight:700;color:${col}">${data.ready?'\u2705 '+data.summary:'\u274C '+data.summary}</div>`;
+        h+=`<div style="font-size:.7rem;color:var(--text2);margin-top:4px">${data.blockers} bloquant(s) | ${data.warnings} avertissement(s) | ${src} \u27A1 ${tgt}</div>`;
+        h+=`</div>`;
+
+        // Checks
+        h+=`<div style="margin-bottom:12px">`;
+        for(const c of data.checks){
+            const icon=c.ok?'\u2705':c.severity==='blocker'?'\u{1F6D1}':'\u26A0\uFE0F';
+            const bg=c.ok?'':'background:'+(c.severity==='blocker'?'#fef2f2':'#fffbeb')+';';
+            h+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;margin-bottom:3px;font-size:.72rem;${bg}">`;
+            h+=`<span>${icon}</span><span style="flex:1">${esc(c.name)}</span><span style="color:var(--text3);font-size:.65rem">${esc(c.detail)}</span>`;
+            h+=`</div>`;
+        }
+        h+=`</div>`;
+
+        // VMs on source
+        if(data.vms&&data.vms.length){
+            h+=`<div style="border-top:1px solid var(--border);padding-top:10px"><div style="font-size:.78rem;font-weight:600;margin-bottom:8px">VMs sur ${esc(src)} :</div>`;
+            h+=`<table><thead><tr><th>VM</th><th>Status</th><th>Disques</th><th>Replicable</th></tr></thead><tbody>`;
+            for(const vm of data.vms){
+                h+=`<tr><td><b>${esc(vm.name)}</b> (${vm.vmid})</td><td>${badge(vm.status)}</td>`;
+                h+=`<td style="font-size:.62rem">${vm.disks.map(d=>`${d.disk}:${d.storage}(${d.type})${d.zfs?' \u2705':''}`).join(', ')}</td>`;
+                h+=`<td style="font-weight:600;color:${vm.replicable?'var(--green)':'var(--red)'}">${vm.replicable?'\u2705 Oui (ZFS)':'\u274C Non (pas sur ZFS)'}</td></tr>`;
+            }
+            h+=`</tbody></table>`;
+
+            // If not replicable, show remediation
+            const nonRepl=data.vms.filter(v=>!v.replicable);
+            if(nonRepl.length&&!data.ready){
+                h+=`<div style="margin-top:10px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:.7rem">`;
+                h+=`<div style="font-weight:600;color:#92400e;margin-bottom:6px">\u{1F4A1} Pour activer la replication :</div>`;
+                h+=`<ol style="margin-left:16px;line-height:1.8;color:var(--text2)">`;
+                h+=`<li><b>Creer un pool ZFS</b> sur les deux noeuds :<br><code style="background:#1e293b;color:#e2e8f0;padding:2px 6px;border-radius:3px;font-size:.65rem">zpool create rpool-data /dev/sdX</code> (adapter le device)</li>`;
+                h+=`<li><b>Ajouter le stockage ZFS</b> dans Proxmox :<br><code style="background:#1e293b;color:#e2e8f0;padding:2px 6px;border-radius:3px;font-size:.65rem">pvesm add zfspool zfs-data -pool rpool-data -content images,rootdir</code></li>`;
+                h+=`<li><b>Migrer les disques VM</b> vers le stockage ZFS :<br>VM > Hardware > Disque > Move Disk > Storage: zfs-data</li>`;
+                h+=`<li><b>Configurer la replication</b> :<br>VM > Replication > Add > Target: ${esc(tgt)} > Schedule: */15 (toutes les 15 min)</li>`;
+                h+=`</ol>`;
+                h+=`<div style="margin-top:8px;font-size:.65rem;color:var(--text3)">Note: LVM-thin ne supporte PAS la replication Proxmox. Seul ZFS est compatible.</div>`;
+                h+=`</div>`;
+            }
+            h+=`</div>`;
+        }
+
+        el.innerHTML=h;
+    }catch(e){
+        el.innerHTML=`<div style="color:var(--red);font-size:.75rem">Erreur: ${esc(e.message)}</div>`;
+    }
 }
 
 // === ABOUT ===
